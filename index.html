@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>持仓分红与股息率分析面板</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Microsoft YaHei","PingFang SC",sans-serif; background:#f4f5f7;
+         margin:0; padding:28px; color:#1f2430; }
+  .wrap { max-width:1280px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:#8a8f99; font-size:13px; margin:0 0 22px; display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+  .status-indicator { display:flex; align-items:center; gap:6px; font-size:13px; padding:4px 10px; border-radius:20px; background:#fff; box-shadow:0 1px 3px rgba(16,24,40,.08); }
+  .status-dot { width:10px; height:10px; border-radius:50%; background:#ccc; }
+  .status-dot.online { background:#0a7d4f; box-shadow:0 0 6px rgba(10,125,79,.5); }
+  .status-dot.offline { background:#d4380d; box-shadow:0 0 6px rgba(212,56,13,.5); }
+  .status-text.online { color:#0a7d4f; font-weight:600; }
+  .status-text.offline { color:#d4380d; font-weight:600; }
+  .cards { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:22px; }
+  .card { background:#fff; border-radius:12px; padding:16px 20px; flex:1; min-width:180px;
+          box-shadow:0 1px 3px rgba(16,24,40,.08); }
+  .card .label { font-size:12px; color:#8a8f99; }
+  .card .value { font-size:26px; font-weight:700; margin-top:6px; }
+  .card .value.hl { color:#d4380d; }
+  .card .value.green { color:#0a7d4f; }
+  .card .value.gold { color:#d4a017; }
+  .card .sub { font-size:13px; color:#5a6072; margin-top:4px; }
+  .card .sub.pos { color:#d4380d; font-weight:600; }
+  .card .sub.neg { color:#0a7d4f; font-weight:600; }
+  .toolbar { display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
+  .toolbar button { padding:9px 18px; font-size:14px; border:none; border-radius:8px;
+                    cursor:pointer; font-weight:600; transition: background 0.2s; }
+  #addStockBtn { background:#1677ff; color:#fff; }
+  #addStockBtn:hover { background:#0958d9; }
+  #toggleEditBtn { background:#fff; color:#1677ff; border:1px solid #1677ff; }
+  #toggleEditBtn:hover { background:#e6f4ff; }
+  #refreshBtn { background:#0a7d4f; color:#fff; }
+  #refreshBtn:hover { background:#095c3b; }
+  #toggleDetailBtn { background:#fff; color:#d4a017; border:1px solid #d4a017; }
+  #toggleDetailBtn:hover { background:#fffbe6; }
+  #exportBtn { background:#fff; color:#555; border:1px solid #ccc; }
+  #exportBtn:hover { background:#f0f0f0; }
+  #importBtn { background:#fff; color:#555; border:1px solid #ccc; }
+  #importBtn:hover { background:#f0f0f0; }
+
+  .table-wrapper { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
+                   background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(16,24,40,.08); margin-bottom: 18px;
+                   position: relative; }
+  table { width:100%; min-width: 960px; border-collapse:collapse; }
+  th, td { padding:11px 12px; text-align:right; font-size:13px; border-bottom:1px solid #eef0f3;
+           white-space:nowrap; }
+  th { background:#fafbfc; color:#5a6072; font-weight:600; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 0 #eef0f3; }
+  td.l, th.l { text-align:left; }
+  td.hl { color:#d4380d; font-weight:700; }
+  td.paid { color:#d4a017; font-weight:700; }
+  td.zero { color:#b0b4bd; }
+  td.pos { color:#d4380d; font-weight:600; }
+  td.neg { color:#0a7d4f; font-weight:600; }
+  .badge { display:inline-block; background:#fff1e8; color:#d4380d; font-size:11px;
+           padding:1px 6px; border-radius:4px; font-weight:600; }
+  .edit-only { display:none; }
+  #mainForm.editing .edit-only { display:inline-block; }
+  #mainForm.editing .view-only { display:none; }
+  h2 { font-size:16px; margin:26px 0 10px; }
+  table.sub td { text-align:right; }
+  table.sub td:nth-child(3) { text-align:left; white-space:normal; min-width: 200px; }
+  table.sub th { text-align:right; }
+  table.sub th:nth-child(3) { text-align:left; }
+  .note { font-size:12px; color:#8a8f99; line-height:1.9; margin-top:6px; }
+  .edit-form { background:#fff; padding:16px; border-radius:12px; margin-bottom:20px;
+               box-shadow:0 1px 3px rgba(16,24,40,.08); display:flex; gap:10px;
+               flex-wrap:wrap; align-items:center; }
+  .edit-form input, .edit-form button { padding:8px 12px; font-size:14px;
+      border:1px solid #d0d5dd; border-radius:6px; }
+  .edit-form input:focus { outline:none; border-color:#4f8cff;
+      box-shadow:0 0 0 3px rgba(79,140,255,.2); }
+  .edit-form button { background:#1677ff; color:#fff; border:none; cursor:pointer; font-weight:600; }
+  .edit-form button:hover { background:#0958d9; }
+  .del-btn { background:#fff1f0; color:#d4380d; border:1px solid #ffa39e; border-radius:4px;
+             padding:3px 8px; cursor:pointer; font-size:12px; }
+  .del-btn:hover { background:#ffccc7; }
+  .ladder-card { background:#fff; border-radius:12px; padding:16px 20px; margin:18px 0;
+                 box-shadow:0 1px 3px rgba(16,24,40,.08); }
+  .ladder-title { font-size:16px; font-weight:700; margin-bottom:10px; }
+  .ladder-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+                 font-size:14px; color:#1f2430; }
+  .ladder-badge { background:#1677ff; color:#fff; font-weight:700; border-radius:6px;
+                  padding:2px 10px; font-size:13px; }
+  .ladder-gap { color:#8a8f99; font-size:13px; margin-top:6px; }
+  .ladder-bar { height:10px; background:#eef0f3; border-radius:6px; overflow:hidden;
+                margin-top:10px; }
+  .ladder-fill { height:100%; background:linear-gradient(90deg,#4f8cff,#1677ff);
+                 border-radius:6px; }
+
+  th.col-name, td.col-name {
+    position: sticky;
+    left: 0;
+    z-index: 6;
+    background: #fff;
+    box-shadow: 2px 0 4px rgba(0,0,0,0.05);
+  }
+  th.col-name {
+    background: #fafbfc;
+    z-index: 20;
+    top: 0;
+  }
+  td.col-name { z-index: 6; }
+  th.col-name, td.col-name {
+    min-width: 110px;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  @media screen and (max-width: 768px) {
+    body { padding: 12px; }
+    h1 { font-size: 18px; }
+    .sub { font-size: 12px; margin-bottom: 16px; }
+    .status-indicator { font-size: 12px; }
+    .cards { gap: 10px; margin-bottom: 16px; }
+    .card { min-width: calc(50% - 5px); padding: 12px 14px; }
+    .card:nth-child(4) { min-width: 100%; }
+    .card .value { font-size: 20px; }
+    .toolbar { flex-direction: row; gap: 8px; }
+    .toolbar button { flex: 1; min-width: calc(50% - 5px); padding: 12px; font-size: 14px; }
+    #refreshBtn { min-width: 100%; }
+    .edit-form { flex-direction: column; align-items: stretch; gap: 12px; padding: 16px; }
+    .edit-form input, .edit-form button { width: 100%; padding: 12px; font-size: 14px; }
+    .ladder-card { padding: 14px; margin: 14px 0; }
+    .ladder-head { flex-direction: column; align-items: flex-start; gap: 6px; }
+    .del-btn, .edit-form input { font-size: 14px; padding: 6px 10px; }
+    input[name^='cost_'], input[name^='shares_'] { width: 100px !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>持仓分红与股息率分析面板</h1>
+  <p class="sub" id="dataTime">
+    <span id="dataTimeText">数据加载中...</span>
+    <span class="status-indicator" id="statusIndicator">
+      <span class="status-dot" id="statusDot"></span>
+      <span class="status-text" id="statusText">连接中...</span>
+    </span>
+  </p>
+
+  <!-- 顶部卡片 -->
+  <div class="cards" id="cardsContainer">
+    <!-- 动态渲染 -->
+  </div>
+
+  <!-- 按钮工具栏 -->
+  <div class="toolbar">
+    <button type="button" id="addStockBtn" onclick="toggleAdd()">添加股票</button>
+    <button type="button" id="toggleEditBtn" onclick="toggleEdit()">修改持仓</button>
+    <button type="button" id="refreshBtn" onclick="refreshData()">获取最新行情</button>
+    <button type="button" id="toggleDetailBtn" onclick="toggleDetail()">显示分红明细</button>
+    <button type="button" id="exportBtn" onclick="exportHoldings()">导出持仓</button>
+    <button type="button" id="importBtn" onclick="document.getElementById('importFile').click()">导入持仓</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importHoldings(event)">
+  </div>
+
+  <!-- 添加股票面板 -->
+  <div id="addStockPanel" style="display:none;">
+    <form id="addForm" class="edit-form">
+      <input type="text" name="code" placeholder="股票/ETF代码" pattern="[0-9]{6}" required>
+      <input type="number" step="any" name="shares" placeholder="持股数量" required>
+      <input type="number" step="any" name="cost" placeholder="成本价 (选填)">
+      <button type="submit">确认添加</button>
+    </form>
+  </div>
+
+  <!-- 主表格 -->
+  <form id="mainForm">
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th class="l">代码</th>
+            <th class="l col-name">名称</th>
+            <th>现价</th>
+            <th>今日涨跌幅</th>
+            <th>成本</th>
+            <th>持股</th>
+            <th>频率</th>
+            <th>成本股息率</th>
+            <th>现价股息率</th>
+            <th>预计全年/股</th>
+            <th>年度分红</th>
+            <th class="l">下期分红</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="holdingsBody">
+          <!-- 动态渲染 -->
+        </tbody>
+      </table>
+    </div>
+  </form>
+
+  <!-- 现金流阶梯 -->
+  <div id="ladderContainer"></div>
+
+  <!-- 分红明细 -->
+  <div id="detailContainer"></div>
+
+  <!-- 说明 -->
+  <p class="note">
+    口径说明:<br>
+    · <b>总市值</b> = 当前价 × 持股数；总浮动盈亏 = 总市值 - 券商账面总成本（负成本计入）。<br>
+    · <b>投入成本</b> = 实际占用本金（负成本按0计算）。<br>
+    · <b>表格滑动</b> = 手机端表格较长，在表格区域内<b>左右滑动</b>可查看隐藏列。<br>
+    · <b>成本股息率</b> = 预计全年每股分红 ÷ 成本价；成本为负者标「已回本∞」。<br>
+    · <b>总成本股息率</b> = 全年分红总额 ÷ 当前实际占用本金。<br>
+    · <b>现价股息率</b> = 预计全年每股分红 ÷ 现价。<br>
+    · <b>下期分红</b> = 已公告未除息时取公告值，否则按历史分红月份规律预估。<br>
+    · 分红数据由 VPS 提供，可能带有缓存。<br>
+    · 持仓数据仅保存在您当前设备的浏览器中，不会上传到任何服务器。<br>
+  </p>
+</div>
+
+<script>
+// ================== 配置 ==================
+const API_BASE = 'https://api.yieldcraft.top';  //
+const HEARTBEAT_URL = API_BASE + '/api/health';  // 心跳使用已有的 /api/health 接口
+const DEFAULT_HOLDINGS = [];   // 无默认持仓，首次使用完全空白
+const STORAGE_KEY = 'holdings_data_v1';
+const showDetail = false;  // 分红明细初始状态
+
+// ================== 工具函数 ==================
+function getToday() {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function parseDate(str) {
+    const parts = str.split('-');
+    if (parts.length === 3) {
+        return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    }
+    return null;
+}
+
+function dateDiffInDays(d1, d2) {
+    return Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function classifyCode(code) {
+    if (!/^\d{6}$/.test(code)) return ['unknown', null];
+    if (code[0] === '6' || code[0] === '5') return [code[0] === '6' ? 'stock' : 'fund', 'SH'];
+    if (code[0] === '0' || code[0] === '3' || code[0] === '1') return [code[0] === '0' || code[0] === '3' ? 'stock' : 'fund', 'SZ'];
+    return ['unknown', null];
+}
+
+// ================== 持仓存储 ==================
+function loadHoldings() {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+        try {
+            const data = JSON.parse(stored);
+            if (Array.isArray(data)) {
+                return data.map(item => ({
+                    code: String(item.code || ''),
+                    shares: item.shares || 100,
+                    cost: item.cost !== undefined ? item.cost : null
+                }));
+            }
+        } catch (e) {}
+    }
+    // 首次使用，返回空数组
+    return [];
+}
+
+function saveHoldings(holdings) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(holdings));
+}
+
+// ================== API 调用 ==================
+async function fetchQuotes(codes) {
+    if (!codes.length) return {};
+    try {
+        const url = `${API_BASE}/api/quotes?codes=${codes.join(',')}`;
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('行情请求失败');
+        const data = await resp.json();
+        return data;
+    } catch (err) {
+        console.error('fetchQuotes error:', err);
+        return {};
+    }
+}
+
+async function fetchDividends(code) {
+    try {
+        const url = `${API_BASE}/api/dividends?code=${code}`;
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('分红请求失败');
+        const data = await resp.json();
+        return data || [];
+    } catch (err) {
+        console.error('fetchDividends error:', err);
+        return [];
+    }
+}
+
+// ================== 心跳检测 ==================
+let isOnline = false;
+let wasOffline = false;
+
+async function heartbeat() {
+    try {
+        const resp = await fetch(HEARTBEAT_URL, { cache: 'no-store' });
+        if (resp.ok) {
+            setOnlineStatus(true);
+        } else {
+            setOnlineStatus(false);
+        }
+    } catch (err) {
+        setOnlineStatus(false);
+    }
+}
+
+function setOnlineStatus(online) {
+    const dot = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    if (online) {
+        dot.className = 'status-dot online';
+        text.className = 'status-text online';
+        text.textContent = '在线';
+        if (wasOffline) {
+            console.log('连接恢复，自动刷新数据');
+            refreshData();
+        }
+        isOnline = true;
+        wasOffline = false;
+    } else {
+        dot.className = 'status-dot offline';
+        text.className = 'status-text offline';
+        text.textContent = '离线';
+        isOnline = false;
+        wasOffline = true;
+    }
+}
+
+setInterval(heartbeat, 10000);   // 每10秒检测一次
+
+// ================== 分析函数（复刻 Python 逻辑） ==================
+function classifyFrequencyByCount(n12) {
+    if (n12 <= 0) return '无分红';
+    if (n12 >= 11) return '每月';
+    if (n12 >= 5) return '每两月';
+    if (n12 === 4) return '每季度';
+    if (n12 === 3) return '约每4个月';
+    if (n12 === 2) return '每半年';
+    if (n12 === 1) return '每年';
+    return '不定期';
+}
+
+function analyzeDividends(records, today) {
+    const analysis = {
+        count: records.length,
+        frequency: '无分红',
+        ttm_per_share: 0.0,
+        ttm_count: 0,
+        latest: null,
+        next_est: null,
+        next_announced: false,
+        est_annual_per_share: 0.0,
+        annual_totals: {}
+    };
+    if (!records.length) return analysis;
+
+    const cutoff = new Date(today);
+    cutoff.setFullYear(cutoff.getFullYear() - 1);
+    cutoff.setHours(0,0,0,0);
+    let ttmSum = 0, ttmN = 0;
+    for (const r of records) {
+        const d = parseDate(r.ex_date);
+        if (d && d >= cutoff && d <= today) {
+            ttmSum += r.per_share;
+            ttmN++;
+        }
+        const y = r.year || r.ex_date.substring(0,4);
+        if (!analysis.annual_totals[y]) analysis.annual_totals[y] = 0;
+        analysis.annual_totals[y] = Math.round((analysis.annual_totals[y] + r.per_share) * 100000) / 100000;
+    }
+    analysis.ttm_per_share = Math.round(ttmSum * 100000) / 100000;
+    analysis.ttm_count = ttmN;
+
+    if (analysis.ttm_per_share > 0) {
+        analysis.est_annual_per_share = analysis.ttm_per_share;
+    } else if (Object.keys(analysis.annual_totals).length) {
+        const years = Object.keys(analysis.annual_totals).sort();
+        analysis.est_annual_per_share = analysis.annual_totals[years[years.length-1]];
+    } else {
+        analysis.est_annual_per_share = records[records.length-1].per_share;
+    }
+
+    analysis.latest = records[records.length-1];
+    if (analysis.ttm_count >= 1) {
+        analysis.frequency = classifyFrequencyByCount(analysis.ttm_count);
+    } else {
+        const dates = records.map(r => parseDate(r.ex_date)).filter(d => d);
+        if (dates.length >= 2) {
+            const intervals = [];
+            for (let i = 0; i < dates.length - 1; i++) {
+                intervals.push(dateDiffInDays(dates[i], dates[i+1]));
+            }
+            intervals.sort((a,b)=>a-b);
+            const median = intervals[Math.floor(intervals.length/2)];
+            analysis.frequency = median > 200 ? '每年' : (median > 75 ? '每半年' : '不定期');
+        }
+    }
+
+    // 下期分红预测
+    const upcoming = records.filter(r => {
+        const d = parseDate(r.ex_date);
+        return d && d > today;
+    });
+    if (upcoming.length) {
+        upcoming.sort((a,b) => parseDate(a.ex_date) - parseDate(b.ex_date));
+        const u = upcoming[0];
+        analysis.next_est = [parseDate(u.ex_date), u.per_share];
+        analysis.next_announced = true;
+    } else {
+        const twoYearsAgo = new Date(today);
+        twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+        const recent2y = records.filter(r => {
+            const d = parseDate(r.ex_date);
+            return d && d >= twoYearsAgo;
+        });
+        const pool = recent2y.length ? recent2y : records;
+        const lastDate = parseDate(records[records.length-1].ex_date);
+        const months = [];
+        for (const r of pool) {
+            const d = parseDate(r.ex_date);
+            if (d && !months.includes(d.getMonth()+1)) {
+                months.push(d.getMonth()+1);
+            }
+        }
+        months.sort((a,b)=>a-b);
+        const candidates = [];
+        if (lastDate && months.length) {
+            for (const mo of months) {
+                let d = new Date(lastDate);
+                d.setDate(1);
+                d.setMonth(mo-1);
+                if (d <= lastDate) {
+                    d.setFullYear(d.getFullYear()+1);
+                }
+                candidates.push(d);
+            }
+        }
+        if (candidates.length) {
+            candidates.sort((a,b)=>a-b);
+            const nd = candidates[0];
+            const sameMonth = records.filter(r => {
+                const d = parseDate(r.ex_date);
+                return d && d.getMonth() === nd.getMonth();
+            });
+            let amt;
+            if (sameMonth.length) {
+                amt = sameMonth[sameMonth.length-1].per_share;
+            } else {
+                const recent = pool.slice(-3).map(r => r.per_share);
+                recent.sort((a,b)=>a-b);
+                amt = recent[Math.floor(recent.length/2)];
+            }
+            analysis.next_est = [nd, Math.round(amt * 100000) / 100000];
+        }
+    }
+    return analysis;
+}
+
+// ================== 构建行数据 ==================
+async function buildRows(holdings, quotes, dividendsMap, today) {
+    const rows = [];
+    for (const h of holdings) {
+        const code = h.code;
+        const [typ] = classifyCode(code);
+        const recs = dividendsMap[code] || [];
+        const analysis = analyzeDividends(recs, today);
+        const quote = quotes[code] || {};
+        const price = quote.price || null;
+        const shares = h.shares;
+        const cost = h.cost;
+
+        let mv = null;
+        if (price !== null) {
+            mv = Math.round(price * shares * 100) / 100;
+        }
+        const est = analysis.est_annual_per_share;
+
+        let pct = quote.pct !== undefined ? quote.pct : null;
+        if (pct !== null) pct = Number(pct);
+        const costTotal = (cost !== null) ? Math.round(cost * shares * 100) / 100 : null;
+        const capitalEmployed = (cost !== null) ? Math.round(Math.max(cost, 0) * shares * 100) / 100 : 0;
+
+        let yieldCost = null;
+        if (cost !== null && cost > 0 && est) {
+            yieldCost = est / cost * 100;
+        }
+        const yieldPrice = (price && est) ? est / price * 100 : null;
+        const income = Math.round(est * shares * 100) / 100;
+
+        rows.push({
+            code,
+            name: quote.name || h.name || '',
+            type: typ,
+            price,
+            pct,
+            cost,
+            shares,
+            mv,
+            costTotal,
+            capitalEmployed,
+            freq: analysis.frequency,
+            yieldCost,
+            yieldPrice,
+            estAnnual: est,
+            income,
+            next: analysis.next_est,
+            nextAnnounced: analysis.next_announced,
+            records: recs,
+            analysis
+        });
+    }
+    return rows;
+}
+
+// ================== 格式化函数 ==================
+function fmtNext(row) {
+    if (row.next) {
+        const [nd, amt] = row.next;
+        let dateStr;
+        if (row.nextAnnounced) {
+            // 已公告：显示完整日期 年-月-日
+            dateStr = `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}-${String(nd.getDate()).padStart(2,'0')}`;
+        } else {
+            // 预估：只显示年月，避免给出虚假的“日”
+            dateStr = `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
+        }
+        const tag = row.nextAnnounced ? '已公告' : '约';
+        return `${dateStr} ${tag} ${amt.toFixed(4)}元/股`;
+    }
+    if (row.freq === '无分红') return '-';
+    return '数据不足';
+}
+
+function fmtYieldCost(row) {
+    if (row.yieldCost !== null) {
+        return row.yieldCost.toFixed(2) + '%';
+    }
+    if (row.cost !== null && row.cost <= 0) {
+        return '已回本∞';
+    }
+    return '--';
+}
+
+// ================== 渲染函数 ==================
+let currentRows = [];
+let isEditing = false;
+let detailVisible = false;
+
+function renderCards(rows, today) {
+    const totalBookCost = rows.reduce((sum, r) => sum + (r.costTotal !== null ? r.costTotal : 0), 0);
+    const totalInvested = rows.reduce((sum, r) => sum + r.capitalEmployed, 0);
+    const totalIncome = rows.reduce((sum, r) => sum + r.income, 0);
+    const totalNextIncome = rows.reduce((sum, r) => sum + (r.next ? r.next[1] * r.shares : 0), 0);
+    const totalMv = rows.reduce((sum, r) => sum + (r.mv !== null ? r.mv : 0), 0);
+
+    const totalProfit = totalMv - totalBookCost;
+    let profitCls = totalProfit > 0 ? 'pos' : (totalProfit < 0 ? 'neg' : '');
+    const profitText = (totalProfit >= 0 ? '+' : '') + totalProfit.toFixed(2);
+    let profitPctText = '--';
+    if (totalBookCost > 0) {
+        const pct = totalProfit / totalBookCost * 100;
+        profitPctText = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+    }
+
+    const yc = totalInvested ? (totalIncome / totalInvested * 100) : null;
+    const ycStr = yc ? yc.toFixed(2) + '%' : '--';
+
+    const monthlyAvg = totalIncome / 12;
+
+    document.getElementById('cardsContainer').innerHTML = `
+      <div class="card">
+        <div class="label">总市值</div>
+        <div class="value">${totalMv.toFixed(2)}</div>
+        <div class="sub ${profitCls}">总浮动盈亏 ${profitText} (${profitPctText})</div>
+      </div>
+      <div class="card">
+        <div class="label">投入成本</div>
+        <div class="value">${totalInvested.toFixed(2)}</div>
+      </div>
+      <div class="card">
+        <div class="label">月均分红(约)</div>
+        <div class="value hl">${monthlyAvg.toFixed(2)}</div>
+      </div>
+      <div class="card">
+        <div class="label">全年分红合计(约)</div>
+        <div class="value gold">${totalIncome.toFixed(2)}</div>
+        <div class="label" style="margin-top:10px;">下期分红合计(约)</div>
+        <div class="value gold">${totalNextIncome.toFixed(2)}</div>
+      </div>
+      <div class="card">
+        <div class="label">总成本股息率</div>
+        <div class="value hl">${ycStr}</div>
+      </div>
+    `;
+}
+
+function renderLadder(monthlyAvg) {
+    let ladderLevel, ladderTargetLevel, ladderTargetAmount, ladderProgress;
+    if (monthlyAvg < 100) {
+        ladderLevel = 0;
+        ladderTargetLevel = 1;
+        ladderTargetAmount = 100;
+        ladderProgress = monthlyAvg / 100 * 100;
+    } else if (monthlyAvg >= 1000) {
+        ladderLevel = 10;
+        ladderTargetLevel = null;
+        ladderTargetAmount = null;
+        ladderProgress = 100;
+    } else {
+        ladderLevel = Math.floor(monthlyAvg / 100);
+        ladderTargetLevel = ladderLevel + 1;
+        ladderTargetAmount = ladderTargetLevel * 100;
+        ladderProgress = (monthlyAvg - ladderLevel * 100) / 100 * 100;
+    }
+
+    let desc, gap;
+    if (ladderLevel >= 10) {
+        desc = `当前等级: <span class='ladder-badge'>Lv ${ladderLevel}</span> 🎉 已达成最高级，月均分红 ${monthlyAvg.toFixed(2)} 元`;
+        gap = '';
+    } else {
+        const diff = ladderTargetAmount - monthlyAvg;
+        desc = `当前等级: <span class='ladder-badge'>Lv ${ladderLevel}</span> 👉 目标下一级: <span class='ladder-badge'>Lv ${ladderTargetLevel}</span>. 月均分红 ${ladderTargetAmount.toFixed(0)} 元`;
+        gap = `距离达成还差月均 ¥${diff.toFixed(2)}`;
+    }
+
+    document.getElementById('ladderContainer').innerHTML = `
+      <div class="ladder-card">
+        <div class="ladder-title">📊 现金流阶梯</div>
+        <div class="ladder-head">${desc}</div>
+        <div class="ladder-gap">${gap}</div>
+        <div class="ladder-bar"><div class="ladder-fill" style="width:${ladderProgress.toFixed(2)}%;"></div></div>
+      </div>
+    `;
+}
+
+function renderTable(rows) {
+    const tbody = document.getElementById('holdingsBody');
+    if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="13" style="text-align:center; color:#b0b4bd; padding:30px;">暂无持仓，请点击上方「添加股票」开始使用</td></tr>`;
+        return;
+    }
+    let trs = '';
+    for (const r of rows) {
+        if (r.price === null) {
+            trs += `<tr><td class='l'>${escapeHtml(r.code)}</td><td class='l col-name'>${escapeHtml(r.name)}</td><td colspan='12' class='l'>行情缺失</td></tr>`;
+            continue;
+        }
+        const ycTxt = fmtYieldCost(r);
+        let ycCls = '';
+        if (r.yieldCost !== null && r.yieldCost > 5) ycCls = 'hl';
+        if (r.yieldCost === null && r.cost !== null && r.cost <= 0) ycCls = 'paid';
+
+        let nextTxt = fmtNext(r);
+        if (r.nextAnnounced) {
+            nextTxt = `<span class='badge'>已公告</span> ${escapeHtml(nextTxt.replace('已公告', '').trim())}`;
+        } else {
+            nextTxt = escapeHtml(nextTxt);
+        }
+
+        const freqCls = r.freq === '无分红' ? 'zero' : '';
+        const changeTxt = r.pct !== null ? (r.pct >= 0 ? '+' : '') + r.pct.toFixed(2) + '%' : '--';
+        const changeCls = r.pct !== null ? (r.pct > 0 ? 'pos' : (r.pct < 0 ? 'neg' : '')) : '';
+
+        const costVal = r.cost !== null ? r.cost.toFixed(3) : '';
+        const costDisplay = costVal || '--';
+        const costInput = `<input type='number' step='any' name='cost_${r.code}' value='${costVal}' placeholder='成本' style='width:80px' class='edit-only'>`;
+        const sharesDisplay = String(r.shares);
+        const sharesInput = `<input type='number' step='any' min='0' name='shares_${r.code}' value='${r.shares}' style='width:80px' class='edit-only'>`;
+        const deleteBtn = `<button type='button' class='del-btn edit-only' onclick='deleteHolding("${r.code}")'>删除</button>`;
+
+        const yieldPriceTxt = r.yieldPrice !== null ? r.yieldPrice.toFixed(2) + '%' : '--';
+
+        trs += `<tr>
+            <td class='l'>${escapeHtml(r.code)}</td>
+            <td class='l col-name'>${escapeHtml(r.name)}</td>
+            <td>${r.price.toFixed(3)}</td>
+            <td class='${changeCls}'>${changeTxt}</td>
+            <td><span class='view-only'>${costDisplay}</span>${costInput}</td>
+            <td><span class='view-only'>${sharesDisplay}</span>${sharesInput}</td>
+            <td class='${freqCls}'>${escapeHtml(r.freq)}</td>
+            <td class='${ycCls}'>${ycTxt}</td>
+            <td>${yieldPriceTxt}</td>
+            <td>${r.estAnnual.toFixed(4)}</td>
+            <td>${r.income.toFixed(2)}</td>
+            <td class='l'>${nextTxt}</td>
+            <td>${deleteBtn}</td>
+        </tr>`;
+    }
+    tbody.innerHTML = trs;
+}
+
+function renderDetail(rows) {
+    const container = document.getElementById('detailContainer');
+    if (!detailVisible) {
+        container.innerHTML = '';
+        return;
+    }
+    let html = '';
+    for (const r of rows) {
+        if (!r.records.length) continue;
+        let its = '';
+        for (const rec of r.records) {
+            its += `<tr>
+                <td>${escapeHtml(rec.ex_date)}</td>
+                <td>${rec.per_share.toFixed(4)}</td>
+                <td>${escapeHtml(rec.note || '')}</td>
+                <td>${escapeHtml(rec.year || '')}</td>
+            </tr>`;
+        }
+        html += `<h2>${escapeHtml(r.code)} ${escapeHtml(r.name)} 历次现金分红</h2>
+            <table class='sub'>
+                <thead><tr><th>除息日</th><th>每股(元)</th><th>方案</th><th>年份</th></tr></thead>
+                <tbody>${its}</tbody>
+            </table>`;
+    }
+    container.innerHTML = html;
+}
+
+function renderAll(rows, today) {
+    currentRows = rows;
+    const totalIncome = rows.reduce((sum, r) => sum + r.income, 0);
+    const monthlyAvg = totalIncome / 12;
+    renderCards(rows, today);
+    renderTable(rows);
+    renderLadder(monthlyAvg);
+    renderDetail(rows);
+    document.getElementById('dataTimeText').textContent = `数据截至 ${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')} | 持仓数据保存在本地浏览器`;
+}
+
+// ================== 主刷新逻辑 ==================
+async function refreshData() {
+    const holdings = loadHoldings();
+    const codes = holdings.map(h => h.code).filter(code => classifyCode(code)[0] !== 'unknown');
+    const [quotes, dividendsMap] = await Promise.all([
+        fetchQuotes(codes),
+        (async () => {
+            const map = {};
+            await Promise.all(codes.map(async code => {
+                map[code] = await fetchDividends(code);
+            }));
+            return map;
+        })()
+    ]);
+    const today = getToday();
+    const rows = await buildRows(holdings, quotes, dividendsMap, today);
+    renderAll(rows, today);
+}
+
+// ================== 事件处理 ==================
+function toggleAdd() {
+    const panel = document.getElementById('addStockPanel');
+    const form = document.getElementById('mainForm');
+    if (panel.style.display === 'none' || panel.style.display === '') {
+        panel.style.display = 'flex';
+        form.classList.remove('editing');
+        isEditing = false;
+        document.getElementById('toggleEditBtn').textContent = '修改持仓';
+    } else {
+        panel.style.display = 'none';
+    }
+}
+
+function toggleEdit() {
+    const form = document.getElementById('mainForm');
+    if (form.classList.contains('editing')) {
+        // 保存修改
+        const holdings = loadHoldings();
+        for (const h of holdings) {
+            const sharesInput = form.querySelector(`input[name='shares_${h.code}']`);
+            const costInput = form.querySelector(`input[name='cost_${h.code}']`);
+            if (sharesInput) {
+                const val = parseFloat(sharesInput.value);
+                if (!isNaN(val)) h.shares = val;
+            }
+            if (costInput) {
+                const costStr = costInput.value.trim();
+                if (costStr) {
+                    const val = parseFloat(costStr);
+                    if (!isNaN(val)) h.cost = val;
+                } else {
+                    h.cost = null;
+                }
+            }
+        }
+        saveHoldings(holdings);
+        refreshData();
+        form.classList.remove('editing');
+        isEditing = false;
+        document.getElementById('toggleEditBtn').textContent = '修改持仓';
+    } else {
+        form.classList.add('editing');
+        isEditing = true;
+        document.getElementById('toggleEditBtn').textContent = '保存退出';
+        document.getElementById('addStockPanel').style.display = 'none';
+    }
+}
+
+function deleteHolding(code) {
+    if (!confirm(`确定删除持仓 ${code} 吗？`)) return;
+    let holdings = loadHoldings();
+    holdings = holdings.filter(h => h.code !== code);
+    saveHoldings(holdings);
+    refreshData();
+}
+
+function toggleDetail() {
+    detailVisible = !detailVisible;
+    document.getElementById('toggleDetailBtn').textContent = detailVisible ? '隐藏分红明细' : '显示分红明细';
+    renderDetail(currentRows);
+}
+
+// 添加股票表单提交
+document.getElementById('addForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const codeInput = this.querySelector('input[name="code"]');
+    const sharesInput = this.querySelector('input[name="shares"]');
+    const costInput = this.querySelector('input[name="cost"]');
+    const code = codeInput.value.trim().padStart(6, '0');
+    const shares = parseFloat(sharesInput.value);
+    const costStr = costInput.value.trim();
+    const cost = costStr ? parseFloat(costStr) : null;
+
+    if (!/^\d{6}$/.test(code) || isNaN(shares) || shares <= 0) {
+        alert('请输入正确的代码和持股数量');
+        return;
+    }
+
+    const holdings = loadHoldings();
+    const existing = holdings.find(h => h.code === code);
+    if (existing) {
+        existing.shares = shares;
+        existing.cost = cost;
+    } else {
+        holdings.push({code, shares, cost});
+    }
+    saveHoldings(holdings);
+    this.reset();
+    document.getElementById('addStockPanel').style.display = 'none';
+    refreshData();
+});
+
+// 导入导出
+function exportHoldings() {
+    const holdings = loadHoldings();
+    const data = JSON.stringify(holdings, null, 2);
+    const blob = new Blob([data], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'holdings_backup.json';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function importHoldings(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!Array.isArray(data)) throw new Error('格式错误');
+            data.forEach(item => {
+                if (!item.code || !/^\d{6}$/.test(item.code)) throw new Error('代码格式错误');
+                if (typeof item.shares !== 'number') throw new Error('持股数量错误');
+                if (item.cost !== null && typeof item.cost !== 'number') throw new Error('成本格式错误');
+            });
+            saveHoldings(data);
+            alert('导入成功！');
+            refreshData();
+        } catch (err) {
+            alert('导入失败：' + err.message);
+        }
+        event.target.value = '';
+    };
+    reader.readAsText(file);
+}
+
+// ================== 初始化 ==================
+document.addEventListener('DOMContentLoaded', () => {
+    heartbeat();
+    refreshData();
+});
+</script>
+</body>
+</html>
