@@ -228,7 +228,7 @@
   .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
   .modal-footer { padding: 12px 20px; border-top: 1px solid var(--border-color); background: #f8fafc; display: flex; justify-content: flex-end; gap: 8px; }
 
-  /* 赞赏弹窗 - 二维码优化放大样式 */
+  /* 赞赏弹窗样式 */
   .sponsor-body { text-align: center; padding: 12px 16px 16px; }
   .sponsor-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.6; }
   .qr-container { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 12px; }
@@ -243,7 +243,6 @@
   }
   .qr-box:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.08); }
 
-  /* 核心优化：二维码从 130px 放大至 200px，确保清晰可辨 */
   .qr-box img {
     width: 200px;
     height: 200px;
@@ -326,6 +325,7 @@
   th.col-name { background: #f8fafc; z-index: 20; top: 0; }
   .footer-note { font-size: 12px; color: var(--text-secondary); line-height: 1.8; margin-top: 20px; }
 
+  /* === 移动端适配修复核心 === */
   @media screen and (max-width: 768px) {
     body { padding: 12px; }
     .header { flex-direction: column; align-items: flex-start; }
@@ -335,8 +335,35 @@
     .card:nth-child(4) { min-width: 100%; }
     .toolbar button { flex: 1; min-width: calc(50% - 4px); text-align: center; }
     .ladder-metrics { grid-template-columns: 1fr; }
-    .qr-box { width: 100%; }
-    .qr-box img { width: 220px; height: 220px; }
+
+    /* 弹窗高度与触摸平滑滑动 */
+    .modal-box { max-height: 85vh; }
+    .modal-body {
+      padding: 12px;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+
+    /* 赞赏弹窗双图水平并排布局，防止图片超出视口 */
+    .qr-container {
+      display: flex;
+      flex-direction: row;
+      gap: 8px;
+      justify-content: center;
+    }
+    .qr-box {
+      flex: 1;
+      min-width: 0;
+      padding: 10px 6px;
+    }
+    .qr-box img {
+      width: 100% !important;
+      max-width: 135px !important;
+      height: auto !important;
+      aspect-ratio: 1 / 1;
+    }
+    .sponsor-desc { font-size: 11px; margin-bottom: 8px; }
+    .coke-tips { font-size: 10px; }
   }
 </style>
 </head>
@@ -472,7 +499,7 @@
   </div>
 </div>
 
-<!-- 🥤 请作者喝可乐/赞赏弹窗 Modal (优化大图清晰度与点击查看) -->
+<!-- 🥤 请作者喝可乐/赞赏弹窗 Modal -->
 <div class="modal-overlay" id="sponsorModal" onclick="if(event.target===this) closeSponsorModal()">
   <div class="modal-box">
     <div class="modal-header">
