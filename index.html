@@ -25,7 +25,7 @@
   .card .value.hl { color:#d4380d; }
   .card .value.green { color:#0a7d4f; }
   .card .value.gold { color:#d4a017; }
-  .card .sub { font-size:13px; color:#5a6072; margin-top:4px; }
+  .card .sub { font-size:13px; color:#5a6072; margin-top:4px; display:block; margin-bottom:0; }
   .card .sub.pos { color:#d4380d; font-weight:600; }
   .card .sub.neg { color:#0a7d4f; font-weight:600; }
   .toolbar { display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
@@ -52,6 +52,8 @@
            white-space:nowrap; }
   th { background:#fafbfc; color:#5a6072; font-weight:600; position: sticky; top: 0; z-index: 10; box-shadow: 0 1px 0 #eef0f3; }
   td.l, th.l { text-align:left; }
+  td.c, th.c { text-align:center; }
+  td.r, th.r { text-align:right; }
   td.hl { color:#d4380d; font-weight:700; }
   td.paid { color:#d4a017; font-weight:700; }
   td.zero { color:#b0b4bd; }
@@ -63,10 +65,28 @@
   #mainForm.editing .edit-only { display:inline-block; }
   #mainForm.editing .view-only { display:none; }
   h2 { font-size:16px; margin:26px 0 10px; }
-  table.sub td { text-align:right; }
-  table.sub td:nth-child(3) { text-align:left; white-space:normal; min-width: 200px; }
-  table.sub th { text-align:right; }
-  table.sub th:nth-child(3) { text-align:left; }
+
+  /* 修复：单独给分红明细表格定义专用样式，避免与顶栏 .sub 冲突 */
+  .detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(16,24,40,.08);
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .detail-table th, .detail-table td {
+    padding: 10px 14px;
+    font-size: 13px;
+    border-bottom: 1px solid #eef0f3;
+  }
+  .detail-table th {
+    background: #fafbfc;
+    color: #5a6072;
+    font-weight: 600;
+  }
+
   .note { font-size:12px; color:#8a8f99; line-height:1.9; margin-top:6px; }
   .edit-form { background:#fff; padding:16px; border-radius:12px; margin-bottom:20px;
                box-shadow:0 1px 3px rgba(16,24,40,.08); display:flex; gap:10px;
@@ -222,11 +242,10 @@
 
 <script>
 // ================== 配置 ==================
-const API_BASE = 'https://api.yieldcraft.top';  //
-const HEARTBEAT_URL = API_BASE + '/api/health';  // 心跳使用已有的 /api/health 接口
-const DEFAULT_HOLDINGS = [];   // 无默认持仓，首次使用完全空白
+const API_BASE = 'https://api.yieldcraft.top';
+const HEARTBEAT_URL = API_BASE + '/api/health';
 const STORAGE_KEY = 'holdings_data_v1';
-const showDetail = false;  // 分红明细初始状态
+let detailVisible = false;
 
 // ================== 工具函数 ==================
 function getToday() {
@@ -277,7 +296,6 @@ function loadHoldings() {
             }
         } catch (e) {}
     }
-    // 首次使用，返回空数组
     return [];
 }
 
@@ -292,8 +310,7 @@ async function fetchQuotes(codes) {
         const url = `${API_BASE}/api/quotes?codes=${codes.join(',')}`;
         const resp = await fetch(url);
         if (!resp.ok) throw new Error('行情请求失败');
-        const data = await resp.json();
-        return data;
+        return await resp.json();
     } catch (err) {
         console.error('fetchQuotes error:', err);
         return {};
@@ -314,7 +331,6 @@ async function fetchDividends(code) {
 }
 
 // ================== 心跳检测 ==================
-let isOnline = false;
 let wasOffline = false;
 
 async function heartbeat() {
@@ -338,23 +354,20 @@ function setOnlineStatus(online) {
         text.className = 'status-text online';
         text.textContent = '在线';
         if (wasOffline) {
-            console.log('连接恢复，自动刷新数据');
             refreshData();
         }
-        isOnline = true;
         wasOffline = false;
     } else {
         dot.className = 'status-dot offline';
         text.className = 'status-text offline';
         text.textContent = '离线';
-        isOnline = false;
         wasOffline = true;
     }
 }
 
-setInterval(heartbeat, 10000);   // 每10秒检测一次
+setInterval(heartbeat, 10000);
 
-// ================== 分析函数（复刻 Python 逻辑） ==================
+// ================== 分析函数 ==================
 function classifyFrequencyByCount(n12) {
     if (n12 <= 0) return '无分红';
     if (n12 >= 11) return '每月';
@@ -422,7 +435,6 @@ function analyzeDividends(records, today) {
         }
     }
 
-    // 下期分红预测
     const upcoming = records.filter(r => {
         const d = parseDate(r.ex_date);
         return d && d > today;
@@ -544,10 +556,8 @@ function fmtNext(row) {
         const [nd, amt] = row.next;
         let dateStr;
         if (row.nextAnnounced) {
-            // 已公告：显示完整日期 年-月-日
             dateStr = `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}-${String(nd.getDate()).padStart(2,'0')}`;
         } else {
-            // 预估：只显示年月，避免给出虚假的“日”
             dateStr = `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
         }
         const tag = row.nextAnnounced ? '已公告' : '约';
@@ -569,10 +579,8 @@ function fmtYieldCost(row) {
 
 // ================== 渲染函数 ==================
 let currentRows = [];
-let isEditing = false;
-let detailVisible = false;
 
-function renderCards(rows, today) {
+function renderCards(rows) {
     const totalBookCost = rows.reduce((sum, r) => sum + (r.costTotal !== null ? r.costTotal : 0), 0);
     const totalInvested = rows.reduce((sum, r) => sum + r.capitalEmployed, 0);
     const totalIncome = rows.reduce((sum, r) => sum + r.income, 0);
@@ -590,7 +598,6 @@ function renderCards(rows, today) {
 
     const yc = totalInvested ? (totalIncome / totalInvested * 100) : null;
     const ycStr = yc ? yc.toFixed(2) + '%' : '--';
-
     const monthlyAvg = totalIncome / 12;
 
     document.getElementById('cardsContainer').innerHTML = `
@@ -668,7 +675,7 @@ function renderTable(rows) {
     let trs = '';
     for (const r of rows) {
         if (r.price === null) {
-            trs += `<tr><td class='l'>${escapeHtml(r.code)}</td><td class='l col-name'>${escapeHtml(r.name)}</td><td colspan='12' class='l'>行情缺失</td></tr>`;
+            trs += `<tr><td class='l'>${escapeHtml(r.code)}</td><td class='l col-name'>${escapeHtml(r.name)}</td><td colspan='11' class='l'>行情缺失</td></tr>`;
             continue;
         }
         const ycTxt = fmtYieldCost(r);
@@ -715,6 +722,7 @@ function renderTable(rows) {
     tbody.innerHTML = trs;
 }
 
+// 修复后的分红明细渲染渲染逻辑
 function renderDetail(rows) {
     const container = document.getElementById('detailContainer');
     if (!detailVisible) {
@@ -723,30 +731,39 @@ function renderDetail(rows) {
     }
     let html = '';
     for (const r of rows) {
-        if (!r.records.length) continue;
+        if (!r.records || !r.records.length) continue;
         let its = '';
         for (const rec of r.records) {
             its += `<tr>
-                <td>${escapeHtml(rec.ex_date)}</td>
-                <td>${rec.per_share.toFixed(4)}</td>
-                <td>${escapeHtml(rec.note || '')}</td>
-                <td>${escapeHtml(rec.year || '')}</td>
+                <td class='l'>${escapeHtml(rec.ex_date)}</td>
+                <td class='r'>${rec.per_share.toFixed(4)}</td>
+                <td class='l'>${escapeHtml(rec.note || '')}</td>
+                <td class='c'>${escapeHtml(rec.year || '')}</td>
             </tr>`;
         }
         html += `<h2>${escapeHtml(r.code)} ${escapeHtml(r.name)} 历次现金分红</h2>
-            <table class='sub'>
-                <thead><tr><th>除息日</th><th>每股(元)</th><th>方案</th><th>年份</th></tr></thead>
-                <tbody>${its}</tbody>
-            </table>`;
+            <div style="overflow-x: auto;">
+              <table class='detail-table'>
+                  <thead>
+                    <tr>
+                      <th class='l' style='width:120px;'>除息日</th>
+                      <th class='r' style='width:120px;'>每股(元)</th>
+                      <th class='l'>方案</th>
+                      <th class='c' style='width:100px;'>年份</th>
+                    </tr>
+                  </thead>
+                  <tbody>${its}</tbody>
+              </table>
+            </div>`;
     }
-    container.innerHTML = html;
+    container.innerHTML = html || '<p style="color:#8a8f99; padding:15px 0;">暂无可展示的分红明细</p>';
 }
 
 function renderAll(rows, today) {
     currentRows = rows;
     const totalIncome = rows.reduce((sum, r) => sum + r.income, 0);
     const monthlyAvg = totalIncome / 12;
-    renderCards(rows, today);
+    renderCards(rows);
     renderTable(rows);
     renderLadder(monthlyAvg);
     renderDetail(rows);
@@ -779,7 +796,6 @@ function toggleAdd() {
     if (panel.style.display === 'none' || panel.style.display === '') {
         panel.style.display = 'flex';
         form.classList.remove('editing');
-        isEditing = false;
         document.getElementById('toggleEditBtn').textContent = '修改持仓';
     } else {
         panel.style.display = 'none';
@@ -789,7 +805,6 @@ function toggleAdd() {
 function toggleEdit() {
     const form = document.getElementById('mainForm');
     if (form.classList.contains('editing')) {
-        // 保存修改
         const holdings = loadHoldings();
         for (const h of holdings) {
             const sharesInput = form.querySelector(`input[name='shares_${h.code}']`);
@@ -811,11 +826,9 @@ function toggleEdit() {
         saveHoldings(holdings);
         refreshData();
         form.classList.remove('editing');
-        isEditing = false;
         document.getElementById('toggleEditBtn').textContent = '修改持仓';
     } else {
         form.classList.add('editing');
-        isEditing = true;
         document.getElementById('toggleEditBtn').textContent = '保存退出';
         document.getElementById('addStockPanel').style.display = 'none';
     }
@@ -835,7 +848,6 @@ function toggleDetail() {
     renderDetail(currentRows);
 }
 
-// 添加股票表单提交
 document.getElementById('addForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const codeInput = this.querySelector('input[name="code"]');
@@ -865,7 +877,6 @@ document.getElementById('addForm').addEventListener('submit', function(e) {
     refreshData();
 });
 
-// 导入导出
 function exportHoldings() {
     const holdings = loadHoldings();
     const data = JSON.stringify(holdings, null, 2);
