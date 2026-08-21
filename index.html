@@ -44,6 +44,24 @@
   .brand-title { font-size: 22px; font-weight: 800; margin: 0; color: var(--text-primary); letter-spacing: -0.5px; }
   .brand-title span { color: var(--primary); }
 
+  /* 顶栏右上角操作区与赞赏按钮 */
+  .header-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .btn-sponsor {
+    background: #fef3c7;
+    color: #d97706;
+    border: 1px solid #fcd34d;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .btn-sponsor:hover { background: #fde68a; color: #b45309; }
+
   /* 隐私提示徽章 & 浮层 Popover */
   .privacy-badge {
     position: relative;
@@ -191,7 +209,7 @@
   .ladder-bar { height: 10px; background: #e2e8f0; border-radius: 6px; overflow: hidden; margin-top: 14px; }
   .ladder-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #2563eb); border-radius: 6px; transition: width 0.4s ease; }
 
-  /* 弹窗 Modal */
+  /* 弹窗 Modal 通用 */
   .modal-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(15, 23, 42, 0.45);
@@ -200,7 +218,7 @@
     z-index: 1000; padding: 16px;
   }
   .modal-box {
-    background: #fff; border-radius: 12px; width: 100%; max-width: 520px;
+    background: #fff; border-radius: 12px; width: 100%; max-width: 620px;
     box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden;
     max-height: 90vh; display: flex; flex-direction: column;
   }
@@ -210,7 +228,72 @@
   .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
   .modal-footer { padding: 12px 20px; border-top: 1px solid var(--border-color); background: #f8fafc; display: flex; justify-content: flex-end; gap: 8px; }
 
-  /* 目标设置表单内部组件 */
+  /* 赞赏弹窗 - 二维码优化放大样式 */
+  .sponsor-body { text-align: center; padding: 12px 16px 16px; }
+  .sponsor-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.6; }
+  .qr-container { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 12px; }
+  .qr-box {
+    background: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px 14px;
+    width: 240px;
+    text-align: center;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .qr-box:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.08); }
+
+  /* 核心优化：二维码从 130px 放大至 200px，确保清晰可辨 */
+  .qr-box img {
+    width: 200px;
+    height: 200px;
+    object-fit: contain;
+    border-radius: 8px;
+    background: #fff;
+    padding: 6px;
+    border: 1px solid #e2e8f0;
+    image-rendering: -webkit-optimize-contrast;
+    -webkit-touch-callout: default !important;
+    pointer-events: auto !important;
+  }
+
+  .qr-box.sugar { border-color: #fca5a5; background: #fff5f5; }
+  .qr-box.sugar .coke-tag { background: #ef4444; color: #fff; }
+
+  .qr-box.zero { border-color: #93c5fd; background: #f0f9ff; }
+  .qr-box.zero .coke-tag { background: #0284c7; color: #fff; }
+
+  .coke-tag {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+  }
+  .qr-box .coke-title { font-size: 14px; font-weight: 700; color: var(--text-primary); margin-top: 8px; }
+  .qr-box .coke-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .qr-box .coke-tips { font-size: 11px; color: #64748b; margin-top: 8px; font-weight: 600; }
+
+  .sponsor-thanks-note {
+    margin-top: 20px;
+    text-align: center;
+  }
+  .btn-thank-action {
+    background: #10b981;
+    color: #fff;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.2);
+  }
+  .btn-thank-action:hover { background: #059669; transform: scale(1.03); }
+
+  /* 目标设置表单组件 */
   .mode-selector { display: flex; gap: 10px; margin-bottom: 16px; }
   .mode-btn {
     flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px;
@@ -246,11 +329,14 @@
   @media screen and (max-width: 768px) {
     body { padding: 12px; }
     .header { flex-direction: column; align-items: flex-start; }
+    .header-actions { width: 100%; justify-content: space-between; margin-top: 8px; }
     .cards { gap: 10px; margin-bottom: 16px; }
     .card { min-width: calc(50% - 5px); padding: 12px 14px; }
     .card:nth-child(4) { min-width: 100%; }
     .toolbar button { flex: 1; min-width: calc(50% - 4px); text-align: center; }
     .ladder-metrics { grid-template-columns: 1fr; }
+    .qr-box { width: 100%; }
+    .qr-box img { width: 220px; height: 220px; }
   }
 </style>
 </head>
@@ -264,16 +350,19 @@
         🔒 本地安全存储
         <div class="popover">
           <b>数据隐私保障说明：</b><br>
-          您的所有股票持仓、成本价、数量及现金流目标数据 100% 仅保存在您当前设备的浏览器（LocalStorage）中，绝不上传至任何后端服务器。
+          您的所有股票持仓,成本价,数量及现金流目标数据 100% 仅保存在您当前设备的浏览器（LocalStorage）中,绝不上传至任何后端服务器。
         </div>
       </div>
     </div>
-    <div class="meta-info">
-      <span id="dataTimeText">更新中...</span>
-      <span class="status-indicator">
-        <span class="status-dot" id="statusDot"></span>
-        <span class="status-text" id="statusText">连接中</span>
-      </span>
+    <div class="header-actions">
+      <button type="button" class="btn-sponsor" onclick="openSponsorModal()">🥤 请作者喝可乐</button>
+      <div class="meta-info">
+        <span id="dataTimeText">更新中...</span>
+        <span class="status-indicator">
+          <span class="status-dot" id="statusDot"></span>
+          <span class="status-text" id="statusText">连接中</span>
+        </span>
+      </div>
     </div>
   </header>
 
@@ -344,7 +433,7 @@
   </p>
 </div>
 
-<!-- 目标设置弹窗 Modal -->
+<!-- 🎯 目标设置弹窗 Modal -->
 <div class="modal-overlay" id="goalModal">
   <div class="modal-box">
     <div class="modal-header">
@@ -353,7 +442,7 @@
     </div>
     <div class="modal-body">
       <div class="mode-selector">
-        <div class="mode-btn active" id="modeBtnCustom" onclick="switchGoalMode('custom')">☕️ 生活场景模式</div>
+        <div class="mode-btn active" id="modeBtnCustom" onclick="switchGoalMode('custom')">🥤 生活场景模式</div>
         <div class="mode-btn" id="modeBtnStep" onclick="switchGoalMode('step')">📈 快速递增模式</div>
       </div>
 
@@ -379,6 +468,54 @@
     <div class="modal-footer">
       <button type="button" class="btn btn-outline" onclick="closeGoalModal()">取消</button>
       <button type="button" class="btn btn-primary" onclick="saveGoalFromModal()">保存并生效</button>
+    </div>
+  </div>
+</div>
+
+<!-- 🥤 请作者喝可乐/赞赏弹窗 Modal (优化大图清晰度与点击查看) -->
+<div class="modal-overlay" id="sponsorModal" onclick="if(event.target===this) closeSponsorModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 class="modal-title">🥤 请作者喝杯可乐</h3>
+      <button class="modal-close" onclick="closeSponsorModal()">&times;</button>
+    </div>
+    <div class="sponsor-body">
+      <p class="sponsor-desc">
+        感谢使用 <b>YieldCraft 息流</b>！<br>
+        本工具完全免费且无广告，数据 100% 仅保存在您的本地浏览器中。<br>
+        如果它帮您厘清了持仓现金流，欢迎请作者喝杯可乐补给能量！
+      </p>
+      <div class="qr-container">
+        <!-- 微信：有糖可乐 -->
+        <div class="qr-box sugar">
+          <span class="coke-tag">🔴 经典全糖</span>
+          <a href="wechat.jpg" target="_blank" title="点击查看大图或在新标签页保存">
+            <img src="wechat.jpg" alt="微信赞赏码" onerror="this.src='https://via.placeholder.com/200?text=WeChat+QR'">
+          </a>
+          <div class="coke-title">🥤 微信赞赏</div>
+          <div class="coke-sub">来瓶有糖可乐，全糖高能</div>
+          <div class="coke-tips">💡 截屏识别 / 长按保存 / 点击放大</div>
+        </div>
+
+        <!-- 支付宝：无糖可乐 -->
+        <div class="qr-box zero">
+          <span class="coke-tag">🖤 Zero 无糖</span>
+          <a href="alipay.jpg" target="_blank" title="点击查看大图或在新标签页保存">
+            <img src="alipay.jpg" alt="支付宝赞赏码" onerror="this.src='https://via.placeholder.com/200?text=Alipay+QR'">
+          </a>
+          <div class="coke-title">🥤 支付宝赞赏</div>
+          <div class="coke-sub">无糖零负担，日常续命</div>
+          <div class="coke-tips">💡 截屏识别 / 长按保存 / 点击放大</div>
+        </div>
+      </div>
+
+      <!-- 快捷感谢动作按钮 -->
+      <div class="sponsor-thanks-note">
+        <button type="button" class="btn-thank-action" onclick="showThankYouAlert()">我已扫码请喝可乐 🥤</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline" onclick="closeSponsorModal()">心意领了，下次一定</button>
     </div>
   </div>
 </div>
@@ -676,7 +813,6 @@ function renderCards(rows) {
     const yc = totalInvested ? (totalIncome / totalInvested * 100) : null;
     const ycStr = yc ? yc.toFixed(2) + '%' : '--';
 
-    // 计算持仓现价总股息率（组合动态股息率）
     const yp = totalMv > 0 ? (totalIncome / totalMv * 100) : null;
     const ypStr = yp ? yp.toFixed(2) + '%' : '--';
 
@@ -714,7 +850,6 @@ function renderCards(rows) {
     `;
 }
 
-// 渲染改进后的现金流阶梯卡片（包含关卡匹配、缺口测算与 DRIP 复利预测）
 function renderLadder(monthlyAvg, rows) {
     const config = loadGoalConfig();
     let levels = [];
@@ -755,10 +890,9 @@ function renderLadder(monthlyAvg, rows) {
 
     const totalMv = rows.reduce((sum, r) => sum + (r.mv !== null ? r.mv : 0), 0);
     const totalIncome = rows.reduce((sum, r) => sum + r.income, 0);
-    const overallYield = totalMv > 0 ? (totalIncome / totalMv) : 0.05; // 组合动态股息率
+    const overallYield = totalMv > 0 ? (totalIncome / totalMv) : 0.05;
 
     if (!currentLvObj && nextLvObj) {
-        // 未达到 Lv 1
         progressPct = Math.min(100, Math.max(0, (monthlyAvg / nextLvObj.amount) * 100));
         const diff = nextLvObj.amount - monthlyAvg;
         descHtml = `当前进度：尚未解锁关卡 👉 首要目标：<span class="ladder-badge">${escapeHtml(nextLvObj.name)}</span>（目标 ¥${nextLvObj.amount}/月）`;
@@ -772,7 +906,6 @@ function renderLadder(monthlyAvg, rows) {
           ${dripYears ? `<div class="metric-item">DRIP 复利自动升级倒计时<strong>约 ${dripYears.toFixed(1)} 年 (若分红全额回购持仓)</strong></div>` : ''}
         `;
     } else if (currentLvObj && nextLvObj) {
-        // 处于某中间关卡
         const baseAmt = currentLvObj.amount;
         const targetAmt = nextLvObj.amount;
         progressPct = Math.min(100, Math.max(0, ((monthlyAvg - baseAmt) / (targetAmt - baseAmt)) * 100));
@@ -789,7 +922,6 @@ function renderLadder(monthlyAvg, rows) {
           ${dripYears ? `<div class="metric-item">DRIP 复利自动升级倒计时<strong>约 ${dripYears.toFixed(1)} 年 (分红全额回购持仓)</strong></div>` : ''}
         `;
     } else {
-        // 已通关所有阶梯目标
         progressPct = 100;
         const topLv = currentLvObj || levels[levels.length - 1];
         descHtml = `🎉 恭喜！已达成最高阶段：<span class="ladder-badge gold">${escapeHtml(topLv.name)}</span>（月均分红 ¥${monthlyAvg.toFixed(2)}）`;
@@ -1008,16 +1140,28 @@ document.getElementById('addForm').addEventListener('submit', function(e) {
     refreshData();
 });
 
+// ================== 赞赏弹窗控制与反馈函数 ==================
+function openSponsorModal() {
+    document.getElementById('sponsorModal').style.display = 'flex';
+}
+
+function closeSponsorModal() {
+    document.getElementById('sponsorModal').style.display = 'none';
+}
+
+function showThankYouAlert() {
+    alert("🎉 收到！感谢你请的可乐续命能量！\n\n祝你持仓现金流滚滚来，收益长虹！💰");
+    closeSponsorModal();
+}
+
 // ================== 目标弹窗控制与逻辑 ==================
 function openGoalModal() {
     const config = loadGoalConfig();
     switchGoalMode(config.mode || 'custom');
 
-    // 填充固定递增参数
     document.getElementById('stepTargetMonthly').value = config.targetMonthly || 5000;
     document.getElementById('stepAmount').value = config.stepAmount || 500;
 
-    // 填充自定义关卡列表
     const listContainer = document.getElementById('customLevelsList');
     listContainer.innerHTML = '';
     const levels = config.customLevels && config.customLevels.length ? config.customLevels : DEFAULT_GOAL_CONFIG.customLevels;
@@ -1130,7 +1274,6 @@ function importData(event) {
         try {
             const data = JSON.parse(e.target.result);
 
-            // 兼容旧版纯数组格式或新版 v2 bundle 格式
             let importedHoldings = [];
             let importedGoal = null;
 
@@ -1143,7 +1286,6 @@ function importData(event) {
                 throw new Error('解析格式错误，无法识别持仓数据');
             }
 
-            // 校验持仓
             importedHoldings.forEach(item => {
                 if (!item.code || !/^\d{6}$/.test(item.code)) throw new Error('包含无效股票代码');
                 if (typeof item.shares !== 'number') throw new Error('包含无效持股数量');
