@@ -232,7 +232,7 @@
     top: 100%;
     margin-top: 4px;
     background: #fff;
-    min-width: 160px;
+    min-width: 180px;
     box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -275,6 +275,36 @@
   td.pos { color: var(--red); font-weight: 600; }
   td.neg { color: var(--green); font-weight: 600; }
   .badge { display: inline-block; background: #fef2f2; color: var(--red); font-size: 11px; padding: 1px 6px; border-radius: 4px; font-weight: 600; }
+
+  /* 名称列容器与下置蓝色观察标签 */
+  .name-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    line-height: 1.25;
+  }
+  .name-text {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .badge-watch {
+    display: inline-block;
+    font-size: 10px;
+    line-height: 1;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 600;
+    color: #2563eb;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    margin-top: 3px;
+  }
 
   .edit-only { display: none; }
   #mainForm.editing .edit-only { display: inline-block; }
@@ -421,9 +451,32 @@
   .detail-table th, .detail-table td { padding: 9px 16px; font-size: 13px; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
   .detail-table th { background: #f8fafc; color: var(--text-secondary); font-weight: 600; }
 
-  th.col-name, td.col-name { position: sticky; left: 0; z-index: 6; background: #fff; box-shadow: 2px 0 4px rgba(0,0,0,0.03); min-width: 110px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+  th.col-name, td.col-name { position: sticky; left: 0; z-index: 6; background: #fff; box-shadow: 2px 0 4px rgba(0,0,0,0.03); min-width: 130px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
   th.col-name { background: #f8fafc; z-index: 20; top: 0; }
-  .footer-note { font-size: 12px; color: var(--text-secondary); line-height: 1.8; margin-top: 20px; }
+
+  /* 页脚说明与安全中心样式 */
+  .footer-note-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-top: 24px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.8;
+  }
+  .footer-section { margin-bottom: 14px; }
+  .footer-section:last-child { margin-bottom: 0; }
+  .footer-section-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
 
   /* 移动端适配 */
   @media screen and (max-width: 768px) {
@@ -477,11 +530,11 @@
       <h1 class="brand-title">
         YieldCraft <span>息流</span>
       </h1>
-      <div class="privacy-badge" tabindex="0">
-        🔒 本地安全存储
+      <div class="privacy-badge" tabindex="0" onclick="openWelcomeModal()">
+        🔒 本地安全存储 / 安全中心
         <div class="popover">
           <b>数据隐私保障说明：</b><br>
-          您的所有股票持仓,成本价,数量及现金流目标数据 100% 仅保存在您当前设备的浏览器（LocalStorage）中,绝不上传至任何后端服务器。
+          您的所有股票持仓、成本价、数量及现金流目标数据 100% 仅保存在您当前设备的浏览器（LocalStorage）中，绝不上传至任何后端服务器。点击可查看安全中心与免责声明。
         </div>
       </div>
     </div>
@@ -503,7 +556,6 @@
     <button type="button" class="btn btn-primary" onclick="toggleAdd()">+ 添加持仓</button>
     <button type="button" class="btn btn-outline" id="toggleEditBtn" onclick="toggleEdit()">修改持仓</button>
     <button type="button" class="btn btn-purple" onclick="openGoalModal()">🎯 设置目标</button>
-    <!-- 绑定 id="refreshBtn" 并传递 true 触发手动刷新提示 -->
     <button type="button" class="btn btn-success" id="refreshBtn" onclick="refreshData(true)">获取最新行情</button>
 
     <div class="dropdown">
@@ -512,6 +564,7 @@
         <button type="button" class="dropdown-item" id="toggleDetailBtn" onclick="toggleDetail(); closeMoreMenu();">显示分红明细</button>
         <button type="button" class="dropdown-item" onclick="document.getElementById('importFile').click(); closeMoreMenu();">导入配置数据</button>
         <button type="button" class="dropdown-item" onclick="exportData(); closeMoreMenu();">导出配置与持仓</button>
+        <button type="button" class="dropdown-item" onclick="openWelcomeModal(); closeMoreMenu();">🛡️ 安全中心与免责声明</button>
       </div>
     </div>
 
@@ -521,7 +574,7 @@
   <div id="addStockPanel" style="display:none;">
     <form id="addForm" class="edit-form">
       <input type="text" name="code" placeholder="股票/ETF代码 (如 601668)" pattern="[0-9]{6}" required>
-      <input type="number" step="any" name="shares" placeholder="持股数量" required>
+      <input type="number" step="any" name="shares" placeholder="持股数量 (留空或0即为观察)">
       <input type="number" step="any" name="cost" placeholder="成本价 (选填)">
       <button type="submit" class="btn btn-primary">确认添加</button>
     </form>
@@ -556,15 +609,70 @@
 
   <div id="detailContainer"></div>
 
-  <p class="footer-note">
-    <b>计算说明：</b><br>
-    · <b>总市值</b> = 当前价 × 持股数；<b>总浮动盈亏</b> = 总市值 - 券商账面总成本（负成本计入）。<br>
-    · <b>整体成本股息率</b> = 预计全年总分红 ÷ 投入本金总额；反映基于历史买入本金的实际现金收益率。<br>
-    · <b>组合动态股息率</b> = 预计全年总分红 ÷ 当前持仓总市值；反映按照今日市价重置或评估当前持仓组合时的即期现金收益率。<br>
-    · <b>补仓测算与 DRIP 复利</b> = 基于持仓当前整体现价股息率算得的预测模型，供投资规划参考。
-  </p>
+  <!-- 页脚说明与法律风险规避/安全中心 -->
+  <div class="footer-note-card">
+    <div class="footer-section">
+      <div class="footer-section-title">📊 计算与数据说明</div>
+      · <b>观察标的</b> = 持股数量为 0 的标的，仅用于监测现价与股息率，不参与组合市值、成本及动态股息率的汇总计算。<br>
+      · <b>总市值</b> = 当前价 × 持股数；<b>总浮动盈亏</b> = 总市值 - 券商账面总成本（负成本计入）。<br>
+      · <b>整体成本股息率</b> = 预计全年总分红 ÷ 投入本金总额；反映基于历史买入本金的实际现金收益率。<br>
+      · <b>组合动态股息率</b> = 预计全年总分红 ÷ 当前持仓总市值；反映按照今日市价重置或评估当前持仓组合时的即期现金收益率。<br>
+      · <b>补仓测算与 DRIP 复利</b> = 基于持仓当前整体现价股息率算得的预测模型，供个人财务规划参考。
+    </div>
+
+    <div class="footer-section" style="padding-top: 12px; border-top: 1px dashed var(--border-color);">
+      <div class="footer-section-title">⚖️ 法律免责声明与合规安全中心</div>
+      · <b>个人记账辅助工具：</b>本系统仅为个人投资者提供资产持仓记录、历史分红数据整理及被动现金流推算的辅助工具，<b>不推荐任何股票、ETF、基金或金融产品</b>。<br>
+      · <b>不构成投资建议：</b>本面板展示的所有股息率、分红预测、复利模型及场景分析均不构成任何投资建议、财务咨询或收益承诺，投资者据此作出的任何买卖决策风险自担。<br>
+      · <b>数据来源与时限：</b>行情数据及历史分红记录均来源于公开市场接口，可能因网络延迟或第三方接口变动存在误差，请以交易所与公司法定公告为准。<br>
+      · <b>100% 本地隐私安全保障：</b>本工具为纯前端应用，<b>无任何后端用户数据库</b>。您的所有持仓代码、持股数量、买入成本及现金流目标数据 <b>完全仅保存在您本地浏览器的 LocalStorage 中</b>，绝不会收集或上传您的任何资产隐私数据。
+    </div>
+  </div>
 </div>
 
+<!-- 首次使用欢迎与安全合规提示弹窗 -->
+<div class="modal-overlay" id="welcomeModal">
+  <div class="modal-box" style="max-width: 560px;">
+    <div class="modal-header">
+      <h3 class="modal-title">👋 欢迎使用 YieldCraft 息流</h3>
+      <button class="modal-close" onclick="closeWelcomeModal()">&times;</button>
+    </div>
+    <div class="modal-body" style="line-height: 1.6; font-size: 13px; color: var(--text-primary);">
+      <p style="margin-top:0; font-size: 14px; font-weight: 600; color: var(--primary);">
+        YieldCraft 息流 是一款专为个人投资者打造的持仓资产与被动现金流分析工具。
+      </p>
+
+      <div style="background: #f8fafc; border: 1px solid var(--border-color); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+        <b style="color: var(--text-primary); font-size: 13px;">💡 本工具能为您做什么：</b>
+        <ul style="margin: 6px 0 0 18px; padding: 0; color: var(--text-secondary); line-height: 1.7;">
+          <li><b>持仓监测：</b>自动获取股票/ETF最新行情，计算组合总市值与浮动盈亏。</li>
+          <li><b>现金流分析：</b>基于历史派息记录测算持仓整体成本股息率与动态股息率。</li>
+          <li><b>目标管理：</b>提供场景化现金流阶梯（如外卖自由、房租 cover）与复利升级推算。</li>
+        </ul>
+      </div>
+
+      <div style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+        <b style="color: #1d4ed8; font-size: 13px;">🔒 安全中心与隐私承诺：</b>
+        <p style="margin: 4px 0 0 0; color: #1e40af; font-size: 12px; line-height: 1.6;">
+          您的所有股票持仓、成本价、持股数量及现金流目标数据 <b>100% 仅保存在您当前设备的浏览器（LocalStorage）中</b>。本系统没有任何后端用户数据库，绝对不会上传或收集您的任何个人资产隐私。
+        </p>
+      </div>
+
+      <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 12px; border-radius: 8px;">
+        <b style="color: #dc2626; font-size: 13px;">⚠️ 法律免责与合规声明：</b>
+        <ul style="margin: 4px 0 0 18px; padding: 0; color: #991b1b; font-size: 12px; line-height: 1.6;">
+          <li><b>非投资建议：</b>本工具仅作为数据记录与计算辅助工具，<b>不推荐、不分析任何具体股票或金融产品</b>，不构成任何投资建议或买卖依据。</li>
+          <li><b>数据参考性：</b>行情及历史分红数据来源于公开接口，预测模型仅供个人财务规划参考，市场有风险，投资需谨慎。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content: center;">
+      <button type="button" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 10px; font-size: 14px;" onclick="acceptWelcome()">我已充分阅读并知晓，开始使用</button>
+    </div>
+  </div>
+</div>
+
+<!-- 目标设置弹窗 -->
 <div class="modal-overlay" id="goalModal">
   <div class="modal-box">
     <div class="modal-header">
@@ -601,6 +709,7 @@
   </div>
 </div>
 
+<!-- 赞赏弹窗 -->
 <div class="modal-overlay" id="sponsorModal" onclick="if(event.target===this) closeSponsorModal()">
   <div class="modal-box">
     <div class="modal-header">
@@ -650,6 +759,7 @@
 const API_BASE = 'https://api.yieldcraft.top';
 const STORAGE_HOLDINGS_KEY = 'holdings_data_v1';
 const STORAGE_GOAL_KEY = 'yieldcraft_goal_v1';
+const STORAGE_WELCOME_KEY = 'yieldcraft_welcome_v1';
 
 let detailVisible = false;
 let currentRows = [];
@@ -731,8 +841,8 @@ function loadHoldings() {
             if (Array.isArray(data)) {
                 return data.map(item => ({
                     code: String(item.code || ''),
-                    shares: item.shares || 100,
-                    cost: item.cost !== undefined ? item.cost : null
+                    shares: item.shares !== undefined && item.shares !== null ? Number(item.shares) : 0,
+                    cost: item.cost !== undefined && item.cost !== null && item.cost !== '' ? Number(item.cost) : null
                 }));
             }
         } catch (e) {}
@@ -756,6 +866,27 @@ function loadGoalConfig() {
 
 function saveGoalConfig(config) {
     localStorage.setItem(STORAGE_GOAL_KEY, JSON.stringify(config));
+}
+
+// ================== 首次访问与安全中心控制 ==================
+function checkWelcome() {
+    const hasSeen = localStorage.getItem(STORAGE_WELCOME_KEY);
+    if (!hasSeen) {
+        document.getElementById('welcomeModal').style.display = 'flex';
+    }
+}
+
+function acceptWelcome() {
+    localStorage.setItem(STORAGE_WELCOME_KEY, 'true');
+    document.getElementById('welcomeModal').style.display = 'none';
+}
+
+function openWelcomeModal() {
+    document.getElementById('welcomeModal').style.display = 'flex';
+}
+
+function closeWelcomeModal() {
+    document.getElementById('welcomeModal').style.display = 'none';
 }
 
 // ================== API 调用与状态 ==================
@@ -905,7 +1036,7 @@ async function buildRows(holdings, quotes, dividendsMap, today) {
         const analysis = analyzeDividends(recs, today);
         const quote = quotes[code] || {};
         const price = quote.price || null;
-        const shares = h.shares;
+        const shares = h.shares || 0;
         const cost = h.cost;
 
         let mv = price !== null ? Math.round(price * shares * 100) / 100 : null;
@@ -1106,6 +1237,13 @@ function renderTable(rows) {
             trs += `<tr><td class='l'>${escapeHtml(r.code)}</td><td class='l col-name'>${escapeHtml(r.name)}</td><td colspan='11' class='l'>行情数据缺失</td></tr>`;
             continue;
         }
+        const isWatch = r.shares === 0;
+
+        const nameDisplay = `<div class="name-container">
+          <span class="name-text" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>
+          ${isWatch ? `<span class="badge-watch">观察</span>` : ''}
+        </div>`;
+
         const ycTxt = fmtYieldCost(r);
         let ycCls = '';
         if (r.yieldCost !== null && r.yieldCost > 5) ycCls = 'hl';
@@ -1125,7 +1263,7 @@ function renderTable(rows) {
         const costVal = r.cost !== null ? r.cost.toFixed(3) : '';
         const costDisplay = costVal || '--';
         const costInput = `<input type='number' step='any' name='cost_${r.code}' value='${costVal}' placeholder='成本' style='width:75px' class='edit-only'>`;
-        const sharesDisplay = String(r.shares);
+        const sharesDisplay = isWatch ? '0 (观察)' : String(r.shares);
         const sharesInput = `<input type='number' step='any' min='0' name='shares_${r.code}' value='${r.shares}' style='width:75px' class='edit-only'>`;
         const deleteBtn = `<button type='button' class='del-btn edit-only' onclick='deleteHolding("${r.code}")'>删除</button>`;
 
@@ -1133,7 +1271,7 @@ function renderTable(rows) {
 
         trs += `<tr>
             <td class='l'>${escapeHtml(r.code)}</td>
-            <td class='l col-name'>${escapeHtml(r.name)}</td>
+            <td class='l col-name'>${nameDisplay}</td>
             <td>${r.price.toFixed(3)}</td>
             <td class='${changeCls}'>${changeTxt}</td>
             <td><span class='view-only'>${costDisplay}</span>${costInput}</td>
@@ -1188,12 +1326,11 @@ function renderAll(rows, today, timeStr) {
     document.getElementById('dataTimeText').textContent = timeStr || `数据更新于 ${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 }
 
-// ================== 主数据刷新逻辑 (含交互体验优化) ==================
+// ================== 主数据刷新逻辑 ==================
 async function refreshData(isManual = false) {
     const btn = document.getElementById('refreshBtn');
     const originalText = btn ? btn.textContent : '获取最新行情';
 
-    // 1. 禁用按钮并显示加载中状态
     if (btn) {
         btn.disabled = true;
         btn.textContent = '⏳ 刷新中...';
@@ -1221,7 +1358,6 @@ async function refreshData(isManual = false) {
         const rows = await buildRows(holdings, quotes, dividendsMap, now);
         renderAll(rows, now, fullTimeText);
 
-        // 2. 如果是手动点击按钮，给出极轻量的成功 Toast 反馈
         if (isManual) {
             showToast('✅ 已成功获取并刷新最新行情数据！', 'success');
         }
@@ -1232,7 +1368,6 @@ async function refreshData(isManual = false) {
             showToast('❌ 行情刷新失败，请检查网络或稍后重试', 'error');
         }
     } finally {
-        // 3. 无论成功还是失败，均恢复按钮文本与可点击状态
         if (btn) {
             btn.disabled = false;
             btn.textContent = originalText;
@@ -1262,7 +1397,7 @@ function toggleEdit() {
             const costInput = form.querySelector(`input[name='cost_${h.code}']`);
             if (sharesInput) {
                 const val = parseFloat(sharesInput.value);
-                if (!isNaN(val)) h.shares = val;
+                if (!isNaN(val) && val >= 0) h.shares = val;
             }
             if (costInput) {
                 const costStr = costInput.value.trim();
@@ -1301,19 +1436,23 @@ document.getElementById('addForm').addEventListener('submit', function(e) {
     const sharesInput = this.querySelector('input[name="shares"]');
     const costInput = this.querySelector('input[name="cost"]');
     const code = codeInput.value.trim().padStart(6, '0');
-    const shares = parseFloat(sharesInput.value);
+
+    const sharesStr = sharesInput.value.trim();
+    const shares = sharesStr === '' ? 0 : parseFloat(sharesStr);
+
     const costStr = costInput.value.trim();
     const cost = costStr ? parseFloat(costStr) : null;
 
-    if (!/^\d{6}$/.test(code) || isNaN(shares) || shares <= 0) {
-        alert('请输入有效的6位股票代码与持股数量');
+    if (!/^\d{6}$/.test(code) || isNaN(shares) || shares < 0) {
+        alert('请输入有效的6位股票代码与持股数量 (留空或0代表观察)');
         return;
     }
 
     const holdings = loadHoldings();
     const existing = holdings.find(h => h.code === code);
     if (existing) {
-        existing.shares = shares; existing.cost = cost;
+        existing.shares = shares;
+        existing.cost = cost;
     } else {
         holdings.push({code, shares, cost});
     }
@@ -1429,7 +1568,7 @@ function saveGoalFromModal() {
     refreshData();
 }
 
-// ================== 全量数据导出与导入 (含持仓与目标) ==================
+// ================== 全量数据导出与导入 ==================
 function exportData() {
     const holdings = loadHoldings();
     const goalConfig = loadGoalConfig();
@@ -1471,7 +1610,7 @@ function importData(event) {
 
             importedHoldings.forEach(item => {
                 if (!item.code || !/^\d{6}$/.test(item.code)) throw new Error('包含无效股票代码');
-                if (typeof item.shares !== 'number') throw new Error('包含无效持股数量');
+                if (typeof item.shares !== 'number' || item.shares < 0) throw new Error('包含无效持股数量');
             });
 
             saveHoldings(importedHoldings);
@@ -1492,6 +1631,7 @@ function importData(event) {
 // ================== 初始化 ==================
 document.addEventListener('DOMContentLoaded', () => {
     refreshData(false);
+    checkWelcome();
 });
 </script>
 </body>
