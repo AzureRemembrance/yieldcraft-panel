@@ -145,7 +145,7 @@
   .card .card-subtext.neg { color: var(--green); font-weight: 600; }
 
   /* 工具栏与按钮 */
-  .toolbar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
   .btn {
     padding: 8px 14px;
     font-size: 13px;
@@ -168,6 +168,38 @@
   .btn-warning:hover { background: #fffbe6; }
   .btn-purple { background: #8b5cf6; color: #fff; }
   .btn-purple:hover { background: #7c3aed; }
+
+  /* 下拉菜单 (更多设置) */
+  .dropdown { position: relative; display: inline-block; }
+  .dropdown-menu {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: 100%;
+    margin-top: 4px;
+    background: #fff;
+    min-width: 160px;
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    z-index: 100;
+    padding: 4px 0;
+  }
+  .dropdown-menu.show { display: block; }
+  .dropdown-item {
+    display: block;
+    width: 100%;
+    padding: 8px 14px;
+    text-align: left;
+    background: transparent;
+    border: none;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .dropdown-item:hover { background: #f1f5f9; }
 
   /* 表格样式 */
   .table-wrapper {
@@ -346,8 +378,9 @@
     .header-actions { width: 100%; justify-content: space-between; margin-top: 8px; }
     .cards { gap: 10px; margin-bottom: 16px; }
     .card { min-width: calc(50% - 5px); padding: 12px 14px; }
-    .card:nth-child(4) { min-width: 100%; }
-    .toolbar button { flex: 1; min-width: calc(50% - 4px); text-align: center; }
+    .card:nth-child(3), .card:nth-child(4) { min-width: 100%; }
+    .toolbar button, .toolbar .dropdown { flex: 1; min-width: calc(50% - 4px); }
+    .toolbar .dropdown button { width: 100%; justify-content: center; }
     .ladder-metrics { grid-template-columns: 1fr; }
 
     .modal-box { max-height: 85vh; }
@@ -381,7 +414,6 @@
 </head>
 <body>
 <div class="wrap">
-  <!-- 顶栏区域 -->
   <header class="header">
     <div class="brand-group">
       <h1 class="brand-title">YieldCraft <span>息流</span></h1>
@@ -405,22 +437,26 @@
     </div>
   </header>
 
-  <!-- 概览卡片 -->
   <div class="cards" id="cardsContainer"></div>
 
-  <!-- 工具栏（获取最新行情与导入数据已互换位置） -->
   <div class="toolbar">
     <button type="button" class="btn btn-primary" onclick="toggleAdd()">+ 添加持仓</button>
     <button type="button" class="btn btn-outline" id="toggleEditBtn" onclick="toggleEdit()">修改持仓</button>
     <button type="button" class="btn btn-purple" onclick="openGoalModal()">🎯 设置目标</button>
-    <button type="button" class="btn btn-outline" onclick="document.getElementById('importFile').click()">导入数据</button>
-    <button type="button" class="btn btn-warning" id="toggleDetailBtn" onclick="toggleDetail()">显示分红明细</button>
-    <button type="button" class="btn btn-outline" onclick="exportData()">导出配置与持仓</button>
     <button type="button" class="btn btn-success" onclick="refreshData()">获取最新行情</button>
+
+    <div class="dropdown">
+      <button type="button" class="btn btn-outline" onclick="toggleMoreMenu(event)">⚙️ 更多设置 ▾</button>
+      <div class="dropdown-menu" id="moreMenu">
+        <button type="button" class="dropdown-item" id="toggleDetailBtn" onclick="toggleDetail(); closeMoreMenu();">显示分红明细</button>
+        <button type="button" class="dropdown-item" onclick="document.getElementById('importFile').click(); closeMoreMenu();">导入配置数据</button>
+        <button type="button" class="dropdown-item" onclick="exportData(); closeMoreMenu();">导出配置与持仓</button>
+      </div>
+    </div>
+
     <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
   </div>
 
-  <!-- 添加持仓表单 -->
   <div id="addStockPanel" style="display:none;">
     <form id="addForm" class="edit-form">
       <input type="text" name="code" placeholder="股票/ETF代码 (如 601668)" pattern="[0-9]{6}" required>
@@ -430,7 +466,6 @@
     </form>
   </div>
 
-  <!-- 主持仓表格 -->
   <form id="mainForm">
     <div class="table-wrapper">
       <table>
@@ -456,13 +491,10 @@
     </div>
   </form>
 
-  <!-- 现金流阶梯 -->
   <div id="ladderContainer"></div>
 
-  <!-- 分红明细容器 -->
   <div id="detailContainer"></div>
 
-  <!-- 口径说明 -->
   <p class="footer-note">
     <b>计算说明：</b><br>
     · <b>总市值</b> = 当前价 × 持股数；<b>总浮动盈亏</b> = 总市值 - 券商账面总成本（负成本计入）。<br>
@@ -472,7 +504,6 @@
   </p>
 </div>
 
-<!-- 🎯 目标设置弹窗 Modal -->
 <div class="modal-overlay" id="goalModal">
   <div class="modal-box">
     <div class="modal-header">
@@ -485,14 +516,12 @@
         <div class="mode-btn" id="modeBtnStep" onclick="switchGoalMode('step')">📈 快速递增模式</div>
       </div>
 
-      <!-- 生活场景模式配置 -->
       <div id="modeCustomPanel">
         <p style="font-size:12px; color:var(--text-secondary); margin-bottom:12px;">自定义每个阶段代表的生活场景（如：话费自由、外卖自由、房租 cover）。</p>
         <div id="customLevelsList"></div>
         <button type="button" class="btn btn-outline" style="width:100%; justify-content:center; margin-top:8px;" onclick="addCustomLevelRow()">+ 添加新等级节点</button>
       </div>
 
-      <!-- 快速递增模式配置 -->
       <div id="modeStepPanel" style="display:none;">
         <div class="form-group">
           <label>终极月度现金流目标 (元/月)</label>
@@ -511,7 +540,6 @@
   </div>
 </div>
 
-<!-- 🥤 请作者喝可乐/赞赏弹窗 Modal -->
 <div class="modal-overlay" id="sponsorModal" onclick="if(event.target===this) closeSponsorModal()">
   <div class="modal-box">
     <div class="modal-header">
@@ -525,7 +553,6 @@
         如果它帮您厘清了持仓现金流，欢迎请作者喝杯可乐补给能量！
       </p>
       <div class="qr-container">
-        <!-- 微信：有糖可乐 -->
         <div class="qr-box sugar">
           <span class="coke-tag">🔴 经典全糖</span>
           <a href="wechat.jpg" target="_blank" title="点击查看大图或在新标签页保存">
@@ -536,7 +563,6 @@
           <div class="coke-tips">💡 截屏识别 / 长按保存 / 点击放大</div>
         </div>
 
-        <!-- 支付宝：无糖可乐 -->
         <div class="qr-box zero">
           <span class="coke-tag">🖤 Zero 无糖</span>
           <a href="alipay.jpg" target="_blank" title="点击查看大图或在新标签页保存">
@@ -548,7 +574,6 @@
         </div>
       </div>
 
-      <!-- 快捷感谢动作按钮 -->
       <div class="sponsor-thanks-note">
         <button type="button" class="btn-thank-action" onclick="showThankYouAlert()">我已扫码请喝可乐 🥤</button>
       </div>
@@ -607,6 +632,22 @@ function classifyCode(code) {
     if (code[0] === '0' || code[0] === '3' || code[0] === '1') return [code[0] === '0' || code[0] === '3' ? 'stock' : 'fund', 'SZ'];
     return ['unknown', null];
 }
+
+// 下拉菜单控制函数
+function toggleMoreMenu(e) {
+    e.stopPropagation();
+    const menu = document.getElementById('moreMenu');
+    menu.classList.toggle('show');
+}
+
+function closeMoreMenu() {
+    const menu = document.getElementById('moreMenu');
+    if (menu) menu.classList.remove('show');
+}
+
+window.addEventListener('click', () => {
+    closeMoreMenu();
+});
 
 // ================== 持仓与目标配置存储 ==================
 function loadHoldings() {
@@ -868,13 +909,13 @@ function renderCards(rows) {
         <div class="value">${totalInvested.toFixed(2)}</div>
       </div>
       <div class="card">
-        <div class="label">月均分红 (约)</div>
-        <div class="value hl">¥${monthlyAvg.toFixed(2)}</div>
-      </div>
-      <div class="card">
         <div class="label">全年总分红 (约)</div>
         <div class="value gold">¥${totalIncome.toFixed(2)}</div>
         <div class="card-subtext">下期预测合计: ¥${totalNextIncome.toFixed(2)}</div>
+      </div>
+      <div class="card">
+        <div class="label">月均分红 (约)</div>
+        <div class="value hl">¥${monthlyAvg.toFixed(2)}</div>
       </div>
       <div class="card">
         <div class="label">整体成本股息率</div>
@@ -1147,7 +1188,8 @@ function deleteHolding(code) {
 
 function toggleDetail() {
     detailVisible = !detailVisible;
-    document.getElementById('toggleDetailBtn').textContent = detailVisible ? '隐藏分红明细' : '显示分红明细';
+    const btn = document.getElementById('toggleDetailBtn');
+    if (btn) btn.textContent = detailVisible ? '隐藏分红明细' : '显示分红明细';
     renderDetail(currentRows);
 }
 
