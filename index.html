@@ -29,6 +29,34 @@
   }
   .wrap { max-width: 1280px; margin: 0 auto; }
 
+  /* 顶部 Toast 消息提示框 */
+  .toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-100px);
+    background: #1e293b;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
+    z-index: 2000;
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+  .toast.success { background: #059669; }
+  .toast.error { background: #dc2626; }
+
   /* 顶栏与品牌产品 UI */
   .header {
     display: flex;
@@ -42,7 +70,6 @@
   }
   .brand-group { display: flex; align-items: center; gap: 12px; }
 
-  /* === 恢复原版 YieldCraft 样式 + 保留“息流”流光特效 === */
   .brand-title {
     font-size: 20px;
     font-weight: 700;
@@ -51,14 +78,11 @@
     letter-spacing: -0.5px;
   }
 
-  /* === 保留“息流”美化后的流光渐变与液态水流质感 === */
   .brand-title span {
     display: inline-block;
     font-weight: 900;
     letter-spacing: 0.02em;
     padding: 0 2px;
-
-    /* 深蓝 -> 亮蓝 -> 高光天蓝 -> 极光蓝 */
     background: linear-gradient(
       120deg,
       #1d4ed8 0%,
@@ -70,8 +94,6 @@
     background-size: 200% auto;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-
-    /* 柔和流光动画与发光发暗的呼吸发光感 */
     animation: liquidFlow 4s linear infinite;
     filter: drop-shadow(0px 2px 8px rgba(37, 99, 235, 0.2));
     transition: filter 0.3s ease;
@@ -186,16 +208,20 @@
     align-items: center;
     gap: 4px;
   }
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
   .btn-primary { background: var(--primary); color: #fff; }
-  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
   .btn-outline { background: #fff; border-color: var(--border-color); color: var(--text-primary); }
-  .btn-outline:hover { background: #f1f5f9; }
+  .btn-outline:hover:not(:disabled) { background: #f1f5f9; }
   .btn-success { background: #10b981; color: #fff; }
-  .btn-success:hover { background: #059669; }
+  .btn-success:hover:not(:disabled) { background: #059669; }
   .btn-warning { background: #fff; border-color: var(--gold); color: var(--gold); }
-  .btn-warning:hover { background: #fffbe6; }
+  .btn-warning:hover:not(:disabled) { background: #fffbe6; }
   .btn-purple { background: #8b5cf6; color: #fff; }
-  .btn-purple:hover { background: #7c3aed; }
+  .btn-purple:hover:not(:disabled) { background: #7c3aed; }
 
   /* 下拉菜单 (更多设置) */
   .dropdown { position: relative; display: inline-block; }
@@ -441,10 +467,13 @@
 </style>
 </head>
 <body>
+
+<!-- 全局轻量非阻塞 Toast 提示框 -->
+<div id="toast" class="toast"></div>
+
 <div class="wrap">
   <header class="header">
     <div class="brand-group">
-      <!-- 恢复原本 HTML 结构的 YieldCraft + 保留“息流”流光特效 -->
       <h1 class="brand-title">
         YieldCraft <span>息流</span>
       </h1>
@@ -474,7 +503,8 @@
     <button type="button" class="btn btn-primary" onclick="toggleAdd()">+ 添加持仓</button>
     <button type="button" class="btn btn-outline" id="toggleEditBtn" onclick="toggleEdit()">修改持仓</button>
     <button type="button" class="btn btn-purple" onclick="openGoalModal()">🎯 设置目标</button>
-    <button type="button" class="btn btn-success" onclick="refreshData()">获取最新行情</button>
+    <!-- 绑定 id="refreshBtn" 并传递 true 触发手动刷新提示 -->
+    <button type="button" class="btn btn-success" id="refreshBtn" onclick="refreshData(true)">获取最新行情</button>
 
     <div class="dropdown">
       <button type="button" class="btn btn-outline" onclick="toggleMoreMenu(event)">⚙️ 更多设置 ▾</button>
@@ -623,6 +653,7 @@ const STORAGE_GOAL_KEY = 'yieldcraft_goal_v1';
 
 let detailVisible = false;
 let currentRows = [];
+let toastTimer = null;
 
 // 默认目标配置
 const DEFAULT_GOAL_CONFIG = {
@@ -638,6 +669,17 @@ const DEFAULT_GOAL_CONFIG = {
 };
 
 // ================== 工具函数 ==================
+function showToast(message, type = 'success') {
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+    if (toastTimer) clearTimeout(toastTimer);
+    toast.textContent = message;
+    toast.className = `toast show ${type}`;
+    toastTimer = setTimeout(() => {
+        toast.className = 'toast';
+    }, 2500);
+}
+
 function getToday() {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -1135,7 +1177,7 @@ function renderDetail(rows) {
     container.innerHTML = html || '<p style="color:#94a3b8; font-size:13px; padding:10px 0;">暂无详细派息数据</p>';
 }
 
-function renderAll(rows, today) {
+function renderAll(rows, today, timeStr) {
     currentRows = rows;
     const totalIncome = rows.reduce((sum, r) => sum + r.income, 0);
     const monthlyAvg = totalIncome / 12;
@@ -1143,13 +1185,23 @@ function renderAll(rows, today) {
     renderTable(rows);
     renderLadder(monthlyAvg, rows);
     renderDetail(rows);
-    document.getElementById('dataTimeText').textContent = `数据更新于 ${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    document.getElementById('dataTimeText').textContent = timeStr || `数据更新于 ${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 }
 
-// ================== 主数据刷新逻辑 ==================
-async function refreshData() {
+// ================== 主数据刷新逻辑 (含交互体验优化) ==================
+async function refreshData(isManual = false) {
+    const btn = document.getElementById('refreshBtn');
+    const originalText = btn ? btn.textContent : '获取最新行情';
+
+    // 1. 禁用按钮并显示加载中状态
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ 刷新中...';
+    }
+
     const holdings = loadHoldings();
     const codes = holdings.map(h => h.code).filter(code => classifyCode(code)[0] !== 'unknown');
+
     try {
         const [quotes, dividendsMap] = await Promise.all([
             fetchQuotes(codes),
@@ -1159,13 +1211,32 @@ async function refreshData() {
                 return map;
             })()
         ]);
+
         setOnlineStatus(true);
-        const today = getToday();
-        const rows = await buildRows(holdings, quotes, dividendsMap, today);
-        renderAll(rows, today);
+        const now = new Date();
+        const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+        const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+        const fullTimeText = `更新于 ${dateStr} ${timeStr}`;
+
+        const rows = await buildRows(holdings, quotes, dividendsMap, now);
+        renderAll(rows, now, fullTimeText);
+
+        // 2. 如果是手动点击按钮，给出极轻量的成功 Toast 反馈
+        if (isManual) {
+            showToast('✅ 已成功获取并刷新最新行情数据！', 'success');
+        }
     } catch (err) {
         console.error('刷新数据异常:', err);
         setOnlineStatus(false);
+        if (isManual) {
+            showToast('❌ 行情刷新失败，请检查网络或稍后重试', 'error');
+        }
+    } finally {
+        // 3. 无论成功还是失败，均恢复按钮文本与可点击状态
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
     }
 }
 
@@ -1408,7 +1479,7 @@ function importData(event) {
                 saveGoalConfig(importedGoal);
             }
 
-            alert('持仓资产与目标配置导入成功！');
+            showToast('持仓资产与目标配置导入成功！', 'success');
             refreshData();
         } catch (err) {
             alert('导入失败：' + err.message);
@@ -1420,7 +1491,7 @@ function importData(event) {
 
 // ================== 初始化 ==================
 document.addEventListener('DOMContentLoaded', () => {
-    refreshData();
+    refreshData(false);
 });
 </script>
 </body>
