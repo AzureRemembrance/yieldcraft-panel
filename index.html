@@ -41,21 +41,49 @@
     border-bottom: 1px solid var(--border-color);
   }
   .brand-group { display: flex; align-items: center; gap: 12px; }
-  .brand-title { font-size: 22px; font-weight: 800; margin: 0; color: var(--text-primary); letter-spacing: -0.5px; }
 
-  /* === “息流”流光闪烁扫光特效 === */
-  .brand-title span {
-    display: inline-block;
-    background: linear-gradient(110deg, #2563eb 20%, #93c5fd 40%, #ffffff 50%, #93c5fd 60%, #2563eb 80%);
-    background-size: 200% 100%;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: textShine 3s infinite ease-in-out;
+  /* === 恢复原版 YieldCraft 样式 + 保留“息流”流光特效 === */
+  .brand-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+    letter-spacing: -0.5px;
   }
 
-  @keyframes textShine {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+  /* === 保留“息流”美化后的流光渐变与液态水流质感 === */
+  .brand-title span {
+    display: inline-block;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    padding: 0 2px;
+
+    /* 深蓝 -> 亮蓝 -> 高光天蓝 -> 极光蓝 */
+    background: linear-gradient(
+      120deg,
+      #1d4ed8 0%,
+      #2563eb 25%,
+      #60a5fa 50%,
+      #3b82f6 75%,
+      #1d4ed8 100%
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+
+    /* 柔和流光动画与发光发暗的呼吸发光感 */
+    animation: liquidFlow 4s linear infinite;
+    filter: drop-shadow(0px 2px 8px rgba(37, 99, 235, 0.2));
+    transition: filter 0.3s ease;
+  }
+
+  .brand-title:hover span {
+    filter: drop-shadow(0px 3px 12px rgba(37, 99, 235, 0.45));
+  }
+
+  @keyframes liquidFlow {
+    0% { background-position: 0% center; }
+    100% { background-position: -200% center; }
   }
 
   /* 顶栏右上角操作区与赞赏按钮 */
@@ -416,7 +444,10 @@
 <div class="wrap">
   <header class="header">
     <div class="brand-group">
-      <h1 class="brand-title">YieldCraft <span>息流</span></h1>
+      <!-- 恢复原本 HTML 结构的 YieldCraft + 保留“息流”流光特效 -->
+      <h1 class="brand-title">
+        YieldCraft <span>息流</span>
+      </h1>
       <div class="privacy-badge" tabindex="0">
         🔒 本地安全存储
         <div class="popover">
