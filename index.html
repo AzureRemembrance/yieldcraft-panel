@@ -408,15 +408,15 @@
   <!-- 概览卡片 -->
   <div class="cards" id="cardsContainer"></div>
 
-  <!-- 工具栏 -->
+  <!-- 工具栏（获取最新行情与导入数据已互换位置） -->
   <div class="toolbar">
     <button type="button" class="btn btn-primary" onclick="toggleAdd()">+ 添加持仓</button>
     <button type="button" class="btn btn-outline" id="toggleEditBtn" onclick="toggleEdit()">修改持仓</button>
     <button type="button" class="btn btn-purple" onclick="openGoalModal()">🎯 设置目标</button>
-    <button type="button" class="btn btn-success" onclick="refreshData()">获取最新行情</button>
+    <button type="button" class="btn btn-outline" onclick="document.getElementById('importFile').click()">导入数据</button>
     <button type="button" class="btn btn-warning" id="toggleDetailBtn" onclick="toggleDetail()">显示分红明细</button>
     <button type="button" class="btn btn-outline" onclick="exportData()">导出配置与持仓</button>
-    <button type="button" class="btn btn-outline" onclick="document.getElementById('importFile').click()">导入数据</button>
+    <button type="button" class="btn btn-success" onclick="refreshData()">获取最新行情</button>
     <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
   </div>
 
