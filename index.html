@@ -279,7 +279,8 @@
   /* 表格自适应与动态固定列支持 */
   .table-wrapper {
     width: 100%;
-    overflow-x: auto;
+    overflow: auto;
+    max-height: 70vh;
     background: var(--card-bg);
     border-radius: 10px;
     border: 1px solid var(--border-color);
@@ -288,7 +289,8 @@
     -webkit-overflow-scrolling: touch;
   }
   table { width: 100%; min-width: 1100px; border-collapse: separate; border-spacing: 0; table-layout: auto; }
-  th, td { padding: 10px 12px; text-align: right; font-size: 13px; border-bottom: 1px solid var(--border-color); white-space: nowrap; vertical-align: middle; }
+  /* 默认居中对齐，左对齐列通过 .l 类覆盖 */
+  th, td { padding: 10px 12px; text-align: center; font-size: 13px; border-bottom: 1px solid var(--border-color); white-space: nowrap; vertical-align: middle; }
   th { background: #f8fafc; color: var(--text-secondary); font-weight: 600; position: sticky; top: 0; z-index: 20; }
   td.l, th.l { text-align: left; }
   td.hl { color: var(--red); font-weight: 700; }
@@ -313,29 +315,17 @@
     background: #f8fafc;
   }
 
-  /* 可排序与固定控件的表头样式 */
-  th.sortable {
-    cursor: pointer;
-    user-select: none;
-    transition: background 0.15s ease;
-  }
-  th.sortable:hover {
-    background: #f1f5f9;
-  }
+  /* 表头内容：文本直接占用，为图钉留出空间 */
   .th-content {
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 4px;
-    width: 100%;
-  }
-  .th-content.l {
-    justify-content: flex-start;
+    display: inline-block;
+    padding-right: 26px;
   }
   .pin-btn {
-    display: inline-block;
+    position: absolute;
+    top: 6px;
+    right: 6px;
     font-size: 11px;
-    opacity: 0.25;
+    opacity: 0.35;
     cursor: pointer;
     padding: 1px 3px;
     border-radius: 3px;
@@ -434,6 +424,20 @@
     background: #f1f5f9;
     border: 1px solid #cbd5e1;
     margin-top: 3px;
+    white-space: nowrap;
+  }
+
+  /* 观察状态徽章（灰色，用于成本列及股息率列） */
+  .badge-observe {
+    display: inline-block;
+    font-size: 11px;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    color: #64748b;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
     white-space: nowrap;
   }
 
@@ -606,6 +610,10 @@
     width: 240px;
     text-align: center;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
+    /* ↓↓↓ 修复：强制垂直排列，确保标签固定在二维码上方居中 ↓↓↓ */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
   .qr-box:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.08); }
 
@@ -737,6 +745,7 @@
       flex: 1;
       min-width: 0;
       padding: 10px 6px;
+      /* 注意：不需要覆盖 flex-direction，基础样式已强制垂直 */
     }
     .qr-box img {
       width: 100% !important;
@@ -840,7 +849,7 @@
       · <b>总市值</b> = 当前价 × 持股数；<b>总浮动盈亏</b> = 总市值 - 券商账面总成本（负成本计入）。<br>
       · <b>整体成本股息率</b> = 预计全年总分红 ÷ 投入本金总额；反映基于历史买入本金的实际现金收益率。<br>
       · <b>组合动态股息率</b> = 预计全年总分红 ÷ 当前持仓总市值；反映按照今日市价重置或评估当前持仓组合时的即期现金收益率。<br>
-      · <b>固定列与排序小贴士</b> = 点击表头字段可进行升序/降序切换；点击表头旁的 📌 按钮可自定义将任意关键列锁定固定在表格最左侧。
+      · <b>固定列小贴士</b> = 点击表头右侧的 📌 按钮可自定义将任意关键列锁定固定在表格最左侧。
     </div>
 
     <div class="footer-section" style="padding-top: 12px; border-top: 1px dashed var(--border-color);">
@@ -862,7 +871,7 @@
     </div>
     <div class="modal-body">
       <p style="font-size:12px; color:var(--text-secondary); margin-top:0; margin-bottom:12px;">
-        你可以通过 ⬆️ ⬇️ 调整表头列的前后位置（例如把“今日涨跌”提到前面）；点击 📌 可指定锁定固定在左侧的列。
+        你可以通过 ⬆️ ⬇️ 调整表头列的前后位置（例如把“今日涨跌”提到前面）
       </p>
       <div id="columnSettingList" style="display:flex; flex-direction:column; gap:8px;"></div>
     </div>
@@ -1035,7 +1044,6 @@ const TABLE_COLUMNS = [
   { key: 'yieldCost', label: '成本股息率', align: 'right' },
   { key: 'yieldPrice', label: '现价股息率', align: 'right' },
   { key: 'next', label: '下期预测', align: 'left' },
-  { key: 'estAnnual', label: '每股年分红(预估)', align: 'right' },
   { key: 'income', label: '年度分红', align: 'right' },
   { key: 'freq', label: '分红频率', align: 'right' },
   { key: 'cost', label: '成本', align: 'right' },
@@ -1054,7 +1062,6 @@ function loadColumnOrder() {
     try {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed) && parsed.length) {
-        // 过滤确保包含合法 key，并补齐未在列表中的新字段
         const validKeys = parsed.filter(k => TABLE_COLUMNS.some(c => c.key === k));
         TABLE_COLUMNS.forEach(c => {
           if (!validKeys.includes(c.key)) validKeys.push(c.key);
@@ -1076,10 +1083,8 @@ function getActiveColumns() {
   return columnOrder.map(key => map.get(key)).filter(Boolean);
 }
 
-// 状态：当前固定的列名（默认固定“名称”）与排序规则
+// 状态：当前固定的列名（默认固定“名称”）
 let pinnedColKey = localStorage.getItem(STORAGE_PINNED_COL_KEY) || 'name';
-let currentSortKey = null;
-let currentSortOrder = 'asc'; // 'asc' 或 'desc'
 
 const DEFAULT_GOAL_CONFIG = {
   mode: 'custom',
@@ -1477,22 +1482,7 @@ function saveColumnConfigFromModal() {
     renderTable(currentRows);
 }
 
-// ================== 排序与列固定核心逻辑 ==================
-function handleSort(colKey) {
-    if (currentSortKey === colKey) {
-        if (currentSortOrder === 'asc') {
-            currentSortOrder = 'desc';
-        } else if (currentSortOrder === 'desc') {
-            currentSortKey = null;
-            currentSortOrder = 'asc';
-        }
-    } else {
-        currentSortKey = colKey;
-        currentSortOrder = 'asc';
-    }
-    renderTable(currentRows);
-}
-
+// ================== 固定列交互 ==================
 function setPinnedColumn(colKey, event) {
     if (event) event.stopPropagation();
     if (pinnedColKey === colKey) {
@@ -1506,32 +1496,6 @@ function setPinnedColumn(colKey, event) {
         showToast(`📌 已将「${colItem ? colItem.label : colKey}」固定至最左侧`, 'success');
     }
     renderTable(currentRows);
-}
-
-function getSortedRows(rows) {
-    if (!currentSortKey) return rows;
-    const sorted = [...rows];
-    sorted.sort((a, b) => {
-        let valA = a[currentSortKey];
-        let valB = b[currentSortKey];
-
-        if (currentSortKey === 'next') {
-            valA = a.next ? a.next[0].getTime() : 0;
-            valB = b.next ? b.next[0].getTime() : 0;
-        }
-
-        if (valA === null || valA === undefined) valA = -Infinity;
-        if (valB === null || valB === undefined) valB = -Infinity;
-
-        if (typeof valA === 'string') {
-            const res = valA.localeCompare(valB, 'zh-CN');
-            return currentSortOrder === 'asc' ? res : -res;
-        } else {
-            const res = valA - valB;
-            return currentSortOrder === 'asc' ? res : -res;
-        }
-    });
-    return sorted;
 }
 
 // ================== 界面渲染 ==================
@@ -1689,18 +1653,14 @@ function renderTableHeader() {
     const activeColumns = getActiveColumns();
     activeColumns.forEach(col => {
         const isPinned = pinnedColKey === col.key;
-        const isSorted = currentSortKey === col.key;
-        const sortIcon = isSorted ? (currentSortOrder === 'asc' ? ' ▲' : ' ▼') : '';
         const pinnedClass = isPinned ? 'col-pinned-sticky' : '';
-        const alignClass = col.align === 'left' ? 'l' : '';
+        const alignClass = col.align === 'left' ? 'l' : ''; // 左对齐列使用 .l 类，非左对齐使用默认 center
         const pinTitle = isPinned ? '点击取消固定此列' : '点击固定此列到最左侧';
         const pinBtnClass = isPinned ? 'pin-btn active' : 'pin-btn';
 
-        tr += `<th class="${pinnedClass} ${alignClass} sortable" onclick="handleSort('${col.key}')" title="点击按 ${col.label} 排序">
-          <div class="th-content ${col.align === 'left' ? 'l' : ''}">
-            <span>${col.label}${sortIcon}</span>
+        tr += `<th class="${pinnedClass} ${alignClass}">
+            <span class="th-content">${col.label}</span>
             <span class="${pinBtnClass}" onclick="setPinnedColumn('${col.key}', event)" title="${pinTitle}">📌</span>
-          </div>
         </th>`;
     });
     tr += '</tr>';
@@ -1716,17 +1676,63 @@ function renderTable(rows) {
         return;
     }
 
-    const displayRows = getSortedRows(rows);
+    const displayRows = rows; // 保持原始顺序，不做排序
     let trs = '';
 
     for (let i = 0; i < displayRows.length; i++) {
         const r = displayRows[i];
+        const isWatch = r.shares === 0; // 观察状态标志
+
         if (r.price === null) {
-            trs += `<tr>
-                <td class="${pinnedColKey === 'code' ? 'col-pinned-sticky' : ''} col-code">${escapeHtml(r.code)}</td>
-                <td class="${pinnedColKey === 'name' ? 'col-pinned-sticky' : ''}">${escapeHtml(r.name)}</td>
-                <td colspan='${activeColumns.length - 2}' class='l'>行情数据缺失</td>
-            </tr>`;
+            // 行情缺失分支：同样应用观察/无分红规则
+            let cellsHtml = '';
+            activeColumns.forEach(col => {
+                const isPinned = pinnedColKey === col.key;
+                const pinnedCls = isPinned ? 'col-pinned-sticky' : '';
+                let cls = [pinnedCls];
+                if (col.align === 'left') cls.push('l');
+                if (col.key === 'code') cls.push('col-code');
+
+                let content = '--';
+                switch (col.key) {
+                    case 'code':
+                        content = escapeHtml(r.code);
+                        break;
+                    case 'name':
+                        content = escapeHtml(r.name);
+                        break;
+                    case 'cost':
+                        if (isWatch) content = '<span class="badge-observe">观察</span>';
+                        break;
+                    case 'yieldCost':
+                        if (isWatch) {
+                            content = '<span class="badge-observe">观察</span>';
+                        } else if (r.freq === '无分红') {
+                            content = '无分红';
+                            cls.push('zero');
+                        }
+                        break;
+                    case 'yieldPrice':
+                        if (r.freq === '无分红') {
+                            content = '无分红';
+                            cls.push('zero');
+                        }
+                        break;
+                    case 'next':
+                        if (r.freq === '无分红') {
+                            content = '无分红';
+                            cls.push('zero');
+                        }
+                        break;
+                    case 'freq':
+                        if (r.freq === '无分红') cls.push('zero');
+                        content = escapeHtml(r.freq);
+                        break;
+                    // 其他列保持 '--'
+                }
+                cellsHtml += `<td class="${cls.filter(Boolean).join(' ')}">${content}</td>`;
+            });
+            trs += `<tr>${cellsHtml}</tr>`;
             continue;
         }
 
@@ -1745,57 +1751,63 @@ function renderTable(rows) {
                     content = escapeHtml(r.code);
                     break;
                 case 'name':
-                    const isWatch = r.shares === 0;
-                    let subTagHtml = '';
-                    if (isWatch) {
-                        subTagHtml = `<span class="badge-watch">观察</span>`;
-                    } else if (r.cost !== null && r.price !== null) {
-                        const profitVal = (r.price - r.cost) * r.shares;
-                        const sign = profitVal >= 0 ? '+' : '';
-                        if (r.cost > 0) {
-                            const pctVal = ((r.price - r.cost) / r.cost) * 100;
-                            const badgeClass = profitVal >= 0 ? 'badge-profit-pos' : 'badge-profit-neg';
-                            subTagHtml = `<span class="${badgeClass}">${sign}${profitVal.toFixed(2)} (${sign}${pctVal.toFixed(2)}%)</span>`;
-                        } else {
-                            subTagHtml = `<span class="badge-profit-pos">${sign}${profitVal.toFixed(2)} (+∞%)</span>`;
-                        }
-                    } else {
-                        subTagHtml = `<span class="badge-profit-none">未填成本</span>`;
-                    }
+                    const subTagHtml = getSubTagHtml(r);
                     content = `<div class="name-container">
                       <span class="name-text" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>
                       ${subTagHtml}
                     </div>`;
                     break;
                 case 'yieldCost':
-                    if (r.yieldCost !== null && r.yieldCost > 5) cls.push('hl');
-                    if (r.yieldCost === null && r.cost !== null && r.cost <= 0) cls.push('paid');
-                    content = fmtYieldCost(r);
+                    if (isWatch) {
+                        content = '<span class="badge-observe">观察</span>';
+                    } else if (r.freq === '无分红') {
+                        content = '无分红';
+                        cls.push('zero');
+                    } else {
+                        if (r.yieldCost !== null && r.yieldCost > 5) cls.push('hl');
+                        if (r.yieldCost === null && r.cost !== null && r.cost <= 0) cls.push('paid');
+                        content = fmtYieldCost(r);
+                    }
                     break;
                 case 'yieldPrice':
-                    content = r.yieldPrice !== null ? r.yieldPrice.toFixed(2) + '%' : '--';
+                    if (r.freq === '无分红') {
+                        content = '无分红';
+                        cls.push('zero');
+                    } else {
+                        content = r.yieldPrice !== null ? r.yieldPrice.toFixed(2) + '%' : '--';
+                    }
                     break;
                 case 'next':
-                    content = fmtNext(r);
-                    break;
-                case 'estAnnual':
-                    content = r.estAnnual.toFixed(4);
+                    if (r.freq === '无分红') {
+                        content = '无分红';
+                        cls.push('zero');
+                    } else {
+                        content = fmtNext(r);
+                    }
                     break;
                 case 'income':
-                    content = r.income.toFixed(2);
+                    content = '¥' + r.income.toFixed(2);
                     break;
                 case 'freq':
                     if (r.freq === '无分红') cls.push('zero');
                     content = escapeHtml(r.freq);
                     break;
                 case 'cost':
-                    content = r.cost !== null ? r.cost.toFixed(3) : '--';
+                    if (isWatch) {
+                        content = '<span class="badge-observe">观察</span>';
+                    } else {
+                        content = r.cost !== null ? r.cost.toFixed(3) + ' 元' : '--';
+                    }
                     break;
                 case 'shares':
-                    content = r.shares === 0 ? '0 (观察)' : String(r.shares);
+                    if (r.shares === 0) {
+                        content = '<span class="badge-observe">观察</span>';
+                    } else {
+                        content = r.shares + ' 股';
+                    }
                     break;
                 case 'price':
-                    content = r.price.toFixed(3);
+                    content = r.price.toFixed(3) + ' 元';
                     break;
                 case 'pct':
                     if (r.pct !== null) {
@@ -1815,6 +1827,25 @@ function renderTable(rows) {
         trs += `<tr>${cellsHtml}</tr>`;
     }
     tbody.innerHTML = trs;
+}
+
+// 生成名称列下方的涨跌/观察小标签
+function getSubTagHtml(r) {
+    if (r.shares === 0) {
+        return '<span class="badge-watch">观察</span>';
+    } else if (r.cost !== null && r.price !== null) {
+        const profitVal = (r.price - r.cost) * r.shares;
+        const sign = profitVal >= 0 ? '+' : '';
+        if (r.cost > 0) {
+            const pctVal = ((r.price - r.cost) / r.cost) * 100;
+            const badgeClass = profitVal >= 0 ? 'badge-profit-pos' : 'badge-profit-neg';
+            return `<span class="${badgeClass}">${sign}${profitVal.toFixed(2)} (${sign}${pctVal.toFixed(2)}%)</span>`;
+        } else {
+            return `<span class="badge-profit-pos">${sign}${profitVal.toFixed(2)} (+∞%)</span>`;
+        }
+    } else {
+        return '<span class="badge-profit-none">未填成本</span>';
+    }
 }
 
 function renderDetail(rows) {
