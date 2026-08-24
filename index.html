@@ -346,7 +346,7 @@
   table { width: 100%; min-width: 1100px; border-collapse: separate; border-spacing: 0; table-layout: auto; }
   /* 默认居中对齐，左对齐列通过 .l 类覆盖 */
   th, td { padding: 10px 12px; text-align: center; font-size: 13px; border-bottom: 1px solid var(--border-color); white-space: nowrap; vertical-align: middle; }
-  th { background: #f8fafc; color: var(--text-secondary); font-weight: 600; position: sticky; top: 0; z-index: 20; position: relative; }
+  th { background: #f8fafc; color: var(--text-secondary); font-weight: 600; position: sticky; top: 0; z-index: 20; }
   td.l, th.l { text-align: left; }
   td.hl { color: var(--red); font-weight: 700; }
   td.paid { color: var(--gold); font-weight: 700; }
@@ -366,7 +366,8 @@
     box-shadow: 3px 0 6px -2px rgba(15, 23, 42, 0.08);
   }
   th.col-pinned-sticky {
-    z-index: 25;
+    top: 0;          /* 表头纵向吸顶：随整行表头一起固定 */
+    z-index: 30;     /* 高于普通表头(z-20)，横向滚动时盖住其他列 */
     background: #f8fafc;
   }
 
