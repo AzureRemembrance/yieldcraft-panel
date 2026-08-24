@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>YieldCraft 息流 - 个人持仓与现金流分析面板</title>
 <style>
+  /* 引入 Sora (英文) 和 Noto Serif SC (中文衬线宋体) */
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700;900&family=Sora:wght@600;800&display=swap');
+
   :root {
     --primary: #2563eb;
     --primary-hover: #1d4ed8;
@@ -70,25 +73,74 @@
   }
   .brand-group { display: flex; align-items: center; gap: 12px; }
 
+  /* ===== 新版品牌 Logo 样式开始 ===== */
   .brand-title {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--text-primary);
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    font-size: clamp(22px, 3.5vw, 28px);
     margin: 0;
-    letter-spacing: -0.5px;
+    user-select: none;
+    cursor: pointer;
+    /* 蓝色底层弥散光晕 */
+    filter: drop-shadow(0px 8px 20px rgba(37, 99, 235, 0.15))
+            drop-shadow(0px 2px 8px rgba(6, 182, 212, 0.25));
+    transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    letter-spacing: normal; /* 覆盖旧样式 */
   }
 
-  .brand-title span {
-    display: inline-block;
+  /* 悬浮交互：英文与整体一起微微浮起并增强光晕 */
+  .brand-title:hover {
+    transform: translateY(-2px) scale(1.02);
+    filter: drop-shadow(0px 12px 28px rgba(37, 99, 235, 0.28))
+            drop-shadow(0px 4px 14px rgba(6, 182, 212, 0.4));
+  }
+
+  /* 英文部分：Sora 现代科技字体 */
+  .brand-title .brand-en {
+    font-family: 'Sora', sans-serif;
+    display: inline-flex;
+    align-items: baseline;
+    line-height: 1;
+  }
+
+  /* Yield：深藏青 (稳重底座) */
+  .brand-title .word-yield {
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.04em;
+  }
+
+  /* Craft：科技蓝 (精准科技) */
+  .brand-title .word-craft {
+    font-weight: 600;
+    color: #2563eb;
+    letter-spacing: -0.02em;
+    margin-left: 1px;
+  }
+
+  /* 电光青呼吸微光节点 */
+  .brand-title .brand-pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #06b6d4;
+    box-shadow: 0 0 10px #06b6d4;
+    animation: pulseGlow 2.5s infinite ease-in-out;
+  }
+
+  /* 中文部分：典雅衬线体 + 纯蓝流光 */
+  .brand-title .brand-zh {
+    font-family: 'Noto Serif SC', 'Songti SC', 'Source Han Serif SC', serif;
     font-weight: 900;
-    letter-spacing: 0.02em;
-    padding: 0 2px;
+    font-size: 0.95em;
+    letter-spacing: 0.06em;
     background: linear-gradient(
       120deg,
-      #1d4ed8 0%,
-      #2563eb 25%,
-      #60a5fa 50%,
-      #3b82f6 75%,
+      #1d4ed8 0%,  /* 皇家蓝 */
+      #2563eb 30%, /* 科技蓝 */
+      #38bdf8 60%, /* 天蓝 */
+      #06b6d4 85%, /* 电光青 */
       #1d4ed8 100%
     );
     background-size: 200% auto;
@@ -99,14 +151,17 @@
     transition: filter 0.3s ease;
   }
 
-  .brand-title:hover span {
-    filter: drop-shadow(0px 3px 12px rgba(37, 99, 235, 0.45));
-  }
-
+  /* 动画定义 */
   @keyframes liquidFlow {
-    0% { background-position: 0% center; }
+    0%   { background-position: 0% center; }
     100% { background-position: -200% center; }
   }
+
+  @keyframes pulseGlow {
+    0%, 100% { opacity: 0.4; transform: scale(0.85); box-shadow: 0 0 4px #06b6d4; }
+    50%      { opacity: 1;   transform: scale(1.3);  box-shadow: 0 0 12px #06b6d4; }
+  }
+  /* ===== 新版品牌 Logo 样式结束 ===== */
 
   /* 顶栏右上角操作区与快捷按钮 */
   .header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -765,8 +820,13 @@
   <!-- 顶栏区域 -->
   <header class="header">
     <div class="brand-group">
-      <h1 class="brand-title">
-        YieldCraft <span>息流</span>
+      <!-- 新版品牌 Logo -->
+      <h1 class="brand-title" title="YieldCraft 息流">
+        <span class="brand-en">
+          <span class="word-yield">Yield</span><span class="word-craft">Craft</span>
+        </span>
+        <span class="brand-pulse-dot"></span>
+        <span class="brand-zh">息流</span>
       </h1>
       <!-- 本地安全存储说明 -->
       <div class="privacy-badge" tabindex="0">
