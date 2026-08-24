@@ -1243,6 +1243,18 @@ window.addEventListener('click', () => {
 });
 
 // ================== 持仓与目标配置存储 ==================
+// 归一化买入日期：兼容 YYYY-MM-DD / YYYY/MM/DD / YYYY.MM.DD / YYYY年MM月DD日，统一为 YYYY-MM-DD
+function normalizePurchaseDate(v) {
+    if (!v) return '';
+    const s = String(v).trim();
+    const m = s.match(/^(\d{4})[-/.\u5e74](\d{1,2})[-/.\u6708](\d{1,2})\u65e5?$/);
+    if (!m) return '';
+    const y = m[1], mo = String(Number(m[2])).padStart(2, '0'), d = String(Number(m[3])).padStart(2, '0');
+    const dt = new Date(Number(y), Number(mo) - 1, Number(d));
+    if (isNaN(dt.getTime()) || dt.getFullYear() !== Number(y)) return '';
+    return `${y}-${mo}-${d}`;
+}
+
 function loadHoldings() {
     const stored = localStorage.getItem(STORAGE_HOLDINGS_KEY);
     if (stored) {
@@ -1253,7 +1265,7 @@ function loadHoldings() {
                     code: String(item.code || ''),
                     shares: item.shares !== undefined && item.shares !== null ? Number(item.shares) : 0,
                     cost: item.cost !== undefined && item.cost !== null && item.cost !== '' ? Number(item.cost) : null,
-                    purchaseDate: /^\d{4}-\d{2}-\d{2}$/.test(item.purchaseDate || '') ? String(item.purchaseDate) : ''
+                    purchaseDate: normalizePurchaseDate(item.purchaseDate)
                 }));
             }
         } catch (e) {}
@@ -1353,7 +1365,7 @@ async function fetchTradeDate() {
 }
 
 // 获取 [start, 最近交易日] 区间内的A股交易日列表（一次请求，前端本地统计各持仓天数）
-// 返回 { days, calendarStart, endDate }；接口失败或列表为空返回 null
+// 返回 { days, calendarStart, endDate, start }；接口失败或列表为空返回 null
 async function fetchTradeDayList(start) {
     try {
         const resp = await fetch(`${API_BASE}/api/trade-days?start=${start}`);
@@ -1363,7 +1375,8 @@ async function fetchTradeDayList(start) {
         return {
             days: data.trade_days,
             calendarStart: data.calendar_start || data.trade_days[0],
-            endDate: data.end_date || ''
+            endDate: data.end_date || '',
+            start: start
         };
     } catch (err) {
         console.error('fetchTradeDayList error:', err);
@@ -1372,7 +1385,8 @@ async function fetchTradeDayList(start) {
 }
 
 // 交易日历本地缓存（同日复用，避免重复请求）
-const STORAGE_TRADE_CAL_KEY = 'yieldcraft_trade_calendar_v1';
+// 注意：v2 起缓存记录请求起点 start——校验命中时必须确认列表覆盖当前所有持仓的最早买入日
+const STORAGE_TRADE_CAL_KEY = 'yieldcraft_trade_calendar_v2';
 
 function loadTradeCalCache() {
     try {
@@ -2073,12 +2087,13 @@ function applyTradeCal(tradeCal) {
     renderTable(currentRows);
 }
 
-// 获取交易日历：优先本地缓存（endDate 与当前交易日一致则当日复用，零网络请求），否则后台拉取并缓存
+// 获取交易日历：优先本地缓存，否则后台拉取并缓存。
+// 缓存命中必须同时满足：① 截止日=当前交易日（当日有效）；② 列表请求起点 start 不晚于当前最早买入日（覆盖所有持仓）
 function refreshTradeCal(earliestStart, tradeInfo) {
     if (!earliestStart) return;
     const cachedCal = loadTradeCalCache();
     const tradeDateStr = (tradeInfo && /^\d{4}-\d{2}-\d{2}$/.test(tradeInfo.date || '')) ? tradeInfo.date : null;
-    if (tradeDateStr && cachedCal && cachedCal.endDate === tradeDateStr && cachedCal.calendarStart <= earliestStart) {
+    if (tradeDateStr && cachedCal && cachedCal.endDate === tradeDateStr && (cachedCal.start || cachedCal.days[0]) <= earliestStart) {
         applyTradeCal(cachedCal);
         return;
     }
