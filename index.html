@@ -439,7 +439,7 @@
   }
   .name-sub-row > span { margin-top: 0; }
 
-  /* 持仓天数：黑底白字加粗微型方块徽章 */
+  /* 持仓天数：黑底白字加粗微型方块徽章（位于股票名称上方，与名称左对齐） */
   .days-dark-badge {
     font-size: 10px;
     font-weight: 700;
@@ -449,6 +449,7 @@
     border-radius: 3px;
     line-height: 1.4;
     font-variant-numeric: tabular-nums;
+    margin-bottom: 2px;
   }
 
   /* 胶囊徽章组件 */
@@ -1932,10 +1933,10 @@ function renderTable(rows) {
                     const daysHtml = (r.holdDays !== null && r.holdDays !== undefined)
                         ? `<span class="days-dark-badge" title="自买入日期（不含当日）起至最近交易日的A股交易日数">${r.holdDays}交易日</span>` : '';
                     content = `<div class="name-container">
+                      ${daysHtml}
                       <span class="name-text" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>
                       <div class="name-sub-row">
                         <span>${subTagHtml}</span>
-                        ${daysHtml}
                       </div>
                     </div>`;
                     break;
