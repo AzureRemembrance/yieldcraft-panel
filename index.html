@@ -428,6 +428,29 @@
     max-width: 100%;
   }
 
+  /* 名称列底部双端布局：左下角 Tag / 右下角持仓天数 */
+  .name-sub-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-top: 3px;
+    gap: 8px;
+  }
+  .name-sub-row > span { margin-top: 0; }
+
+  /* 持仓天数：黑底白字加粗微型方块徽章 */
+  .days-dark-badge {
+    font-size: 10px;
+    font-weight: 700;
+    color: #ffffff;
+    background: #595959;
+    padding: 0 5px;
+    border-radius: 3px;
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
+  }
+
   /* 胶囊徽章组件 */
   .badge-watch {
     display: inline-block;
@@ -881,6 +904,7 @@
       <input type="text" name="code" placeholder="股票/ETF代码 (如 601668)" pattern="[0-9]{6}" required>
       <input type="number" step="any" name="shares" placeholder="持股数量 (留空或0即为观察)">
       <input type="number" step="any" name="cost" placeholder="成本价 (选填)">
+      <input type="date" name="purchaseDate" title="买入日期 (选填，填写后按交易日统计持仓天数)">
       <button type="submit" class="btn btn-primary">确认添加</button>
     </form>
   </div>
@@ -907,6 +931,7 @@
       · <b>总市值</b> = 当前价 × 持股数；<b>总浮动盈亏</b> = 总市值 - 券商账面总成本（负成本计入）。<br>
       · <b>整体成本股息率</b> = 预计全年总分红 ÷ 投入本金总额；反映基于历史买入本金的实际现金收益率。<br>
       · <b>组合动态股息率</b> = 预计全年总分红 ÷ 当前持仓总市值；反映按照今日市价重置或评估当前持仓组合时的即期现金收益率。<br>
+      · <b>持有天数</b> = 自买入日期（不含买入当日）起至最近交易日之间的<b>A股交易日数量</b>（基于上证指数真实交易日历）；仅对已填写买入日期的非观察持仓显示，未填写买入日期或“观察”标的均不显示。<br>
       · <b>固定列小贴士</b> = 仅“名称”列支持固定至表格最左侧，点击表头右侧的 📌 按钮即可切换固定状态。
     </div>
 
@@ -1227,7 +1252,8 @@ function loadHoldings() {
                 return data.map(item => ({
                     code: String(item.code || ''),
                     shares: item.shares !== undefined && item.shares !== null ? Number(item.shares) : 0,
-                    cost: item.cost !== undefined && item.cost !== null && item.cost !== '' ? Number(item.cost) : null
+                    cost: item.cost !== undefined && item.cost !== null && item.cost !== '' ? Number(item.cost) : null,
+                    purchaseDate: /^\d{4}-\d{2}-\d{2}$/.test(item.purchaseDate || '') ? String(item.purchaseDate) : ''
                 }));
             }
         } catch (e) {}
@@ -1312,6 +1338,53 @@ async function fetchDividends(code) {
         console.error('fetchDividends error:', err);
         return [];
     }
+}
+
+// 获取后端交易日（全局统一以交易日作为"今天"），失败返回 null 由调用方回退本地日期
+async function fetchTradeDate() {
+    try {
+        const resp = await fetch(`${API_BASE}/api/trade-date`);
+        if (!resp.ok) throw new Error('交易日期请求失败');
+        return await resp.json();
+    } catch (err) {
+        console.error('fetchTradeDate error:', err);
+        return null;
+    }
+}
+
+// 获取 [start, 最近交易日] 区间内的A股交易日列表（一次请求，前端本地统计各持仓天数）
+// 返回 { days, calendarStart, endDate }；接口失败或列表为空返回 null
+async function fetchTradeDayList(start) {
+    try {
+        const resp = await fetch(`${API_BASE}/api/trade-days?start=${start}`);
+        if (!resp.ok) throw new Error('交易日列表请求失败');
+        const data = await resp.json();
+        if (!Array.isArray(data.trade_days) || !data.trade_days.length) return null;
+        return {
+            days: data.trade_days,
+            calendarStart: data.calendar_start || data.trade_days[0],
+            endDate: data.end_date || ''
+        };
+    } catch (err) {
+        console.error('fetchTradeDayList error:', err);
+        return null;
+    }
+}
+
+// 交易日历本地缓存（同日复用，避免重复请求）
+const STORAGE_TRADE_CAL_KEY = 'yieldcraft_trade_calendar_v1';
+
+function loadTradeCalCache() {
+    try {
+        const raw = localStorage.getItem(STORAGE_TRADE_CAL_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        return (data && Array.isArray(data.days) && data.days.length && data.calendarStart) ? data : null;
+    } catch (e) { return null; }
+}
+
+function saveTradeCalCache(cal) {
+    try { localStorage.setItem(STORAGE_TRADE_CAL_KEY, JSON.stringify(cal)); } catch (e) {}
 }
 
 // ================== 分红分析逻辑 ==================
@@ -1434,11 +1507,14 @@ async function buildRows(holdings, quotes, dividendsMap, today) {
         const yieldPrice = (price && est) ? (est / price * 100) : null;
         const income = Math.round(est * shares * 100) / 100;
 
+        // 持仓天数初始为 null（绝对不显示），由 applyTradeCal 在交易日历就绪后异步填充
+        let holdDays = null;
+
         rows.push({
             code, name: quote.name || h.name || '', type: typ, price, pct, cost, shares, mv,
             costTotal, capitalEmployed, freq: analysis.frequency, yieldCost, yieldPrice,
             estAnnual: est, income, next: analysis.next_est, nextAnnounced: analysis.next_announced,
-            records: recs, analysis
+            holdDays, records: recs, analysis
         });
     }
     return rows;
@@ -1839,9 +1915,14 @@ function renderTable(rows) {
                     break;
                 case 'name':
                     const subTagHtml = getSubTagHtml(r);
+                    const daysHtml = (r.holdDays !== null && r.holdDays !== undefined)
+                        ? `<span class="days-dark-badge" title="自买入日期（不含当日）起至最近交易日的A股交易日数">${r.holdDays}交易日</span>` : '';
                     content = `<div class="name-container">
                       <span class="name-text" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>
-                      ${subTagHtml}
+                      <div class="name-sub-row">
+                        <span>${subTagHtml}</span>
+                        ${daysHtml}
+                      </div>
                     </div>`;
                     break;
                 case 'yieldCost':
@@ -1972,6 +2053,45 @@ function renderAll(rows, today, timeStr) {
     document.getElementById('dataTimeText').textContent = timeStr || `数据更新于 ${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 }
 
+// ================== 持仓天数徽章（异步填充） ==================
+// 依据真实A股交易日列表统计：买入当日不计入（> 买入日），截至最近交易日；
+// 观察标的/未填日期/列表不可用/买入日早于日历覆盖起点 → 一律不显示（不做近似回退）
+function applyTradeCal(tradeCal) {
+    if (!tradeCal || !Array.isArray(tradeCal.days) || !currentRows.length) return;
+    const holdings = loadHoldings();
+    const hMap = new Map(holdings.map(h => [h.code, h]));
+    currentRows.forEach(r => {
+        const h = hMap.get(r.code);
+        let holdDays = null;
+        if (h && h.shares > 0 && h.purchaseDate) {
+            if (!tradeCal.calendarStart || h.purchaseDate >= tradeCal.calendarStart) {
+                holdDays = tradeCal.days.filter(d => d > h.purchaseDate).length;
+            }
+        }
+        r.holdDays = holdDays;
+    });
+    renderTable(currentRows);
+}
+
+// 获取交易日历：优先本地缓存（endDate 与当前交易日一致则当日复用，零网络请求），否则后台拉取并缓存
+function refreshTradeCal(earliestStart, tradeInfo) {
+    if (!earliestStart) return;
+    const cachedCal = loadTradeCalCache();
+    const tradeDateStr = (tradeInfo && /^\d{4}-\d{2}-\d{2}$/.test(tradeInfo.date || '')) ? tradeInfo.date : null;
+    if (tradeDateStr && cachedCal && cachedCal.endDate === tradeDateStr && cachedCal.calendarStart <= earliestStart) {
+        applyTradeCal(cachedCal);
+        return;
+    }
+    fetchTradeDayList(earliestStart).then(cal => {
+        if (!cal) return;
+        if (tradeDateStr) {
+            cal.endDate = tradeDateStr;
+            saveTradeCalCache(cal);
+        }
+        applyTradeCal(cal);
+    }).catch(() => {});
+}
+
 // ================== 主数据刷新逻辑 ==================
 async function refreshData(isManual = false) {
     const btn = document.getElementById('refreshBtn');
@@ -1985,24 +2105,41 @@ async function refreshData(isManual = false) {
     const holdings = loadHoldings();
     const codes = holdings.map(h => h.code).filter(code => classifyCode(code)[0] !== 'unknown');
 
+    // 仅统计非观察且已填买入日期的持仓；取最早买入日作为交易日列表起点（一次请求覆盖全部持仓）
+    const buyDateHoldings = holdings.filter(h => h.shares > 0 && /^\d{4}-\d{2}-\d{2}$/.test(h.purchaseDate || ''));
+    const earliestStart = buyDateHoldings.length ? buyDateHoldings.map(h => h.purchaseDate).sort()[0] : null;
+
     try {
-        const [quotes, dividendsMap] = await Promise.all([
+        // 关键路径只等行情+分红+交易日参考；交易日历列表不阻塞渲染（徽章异步填充）
+        const [quotes, dividendsMap, tradeInfo] = await Promise.all([
             fetchQuotes(codes),
             (async () => {
                 const map = {};
                 await Promise.all(codes.map(async code => { map[code] = await fetchDividends(code); }));
                 return map;
-            })()
+            })(),
+            fetchTradeDate()
         ]);
 
         setOnlineStatus(true);
         const now = new Date();
-        const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
         const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+
+        // 全局统一使用后端交易日作为"今天"，接口异常时回退本地日期
+        let today;
+        if (tradeInfo && /^\d{4}-\d{2}-\d{2}$/.test(tradeInfo.date || '')) {
+            today = parseDate(tradeInfo.date);
+        } else {
+            today = getToday();
+        }
+        const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
         const fullTimeText = `更新于 ${dateStr} ${timeStr}`;
 
-        const rows = await buildRows(holdings, quotes, dividendsMap, now);
-        renderAll(rows, now, fullTimeText);
+        const rows = await buildRows(holdings, quotes, dividendsMap, today);
+        renderAll(rows, today, fullTimeText);
+
+        // 交易日历异步就绪后填充持仓天数徽章（本地缓存命中则零网络请求）
+        refreshTradeCal(earliestStart, tradeInfo);
 
         if (isManual) {
             showToast('✅ 已成功获取并刷新最新行情数据！', 'success');
@@ -2072,6 +2209,10 @@ function renderDrawerHoldings() {
               <label>成本价 (元)</label>
               <input type="number" class="input-cost" step="any" value="${item.cost !== null && item.cost !== undefined ? item.cost : ''}" placeholder="买入单价 (选填)">
             </div>
+            <div class="drawer-input-group" style="grid-column: 1 / -1;">
+              <label>买入日期 (选填，填写后按交易日统计持仓天数)</label>
+              <input type="date" class="input-purchase-date" value="${item.purchaseDate ? escapeHtml(item.purchaseDate) : ''}">
+            </div>
           </div>
         </div>
         `;
@@ -2087,6 +2228,7 @@ function syncEditingHoldingsFromDOM() {
         const code = card.dataset.code;
         const sharesInput = card.querySelector('.input-shares');
         const costInput = card.querySelector('.input-cost');
+        const purchaseDateInput = card.querySelector('.input-purchase-date');
 
         const sharesVal = parseFloat(sharesInput.value);
         const shares = (!isNaN(sharesVal) && sharesVal >= 0) ? sharesVal : 0;
@@ -2094,7 +2236,9 @@ function syncEditingHoldingsFromDOM() {
         const costVal = costInput.value.trim();
         const cost = costVal !== '' ? parseFloat(costVal) : null;
 
-        updated.push({ code, shares, cost });
+        const purchaseDate = purchaseDateInput ? purchaseDateInput.value.trim() : '';
+
+        updated.push({ code, shares, cost, purchaseDate });
     });
     editingHoldings = updated;
 }
@@ -2158,6 +2302,9 @@ document.getElementById('addForm').addEventListener('submit', function(e) {
     const costStr = costInput.value.trim();
     const cost = costStr ? parseFloat(costStr) : null;
 
+    const purchaseDateInput = this.querySelector('input[name="purchaseDate"]');
+    const purchaseDate = purchaseDateInput ? purchaseDateInput.value.trim() : '';
+
     if (!/^\d{6}$/.test(code) || isNaN(shares) || shares < 0) {
         alert('请输入有效的6位股票代码与持股数量 (留空或0代表观察)');
         return;
@@ -2168,8 +2315,9 @@ document.getElementById('addForm').addEventListener('submit', function(e) {
     if (existing) {
         existing.shares = shares;
         existing.cost = cost;
+        existing.purchaseDate = purchaseDate;
     } else {
-        holdings.push({code, shares, cost});
+        holdings.push({code, shares, cost, purchaseDate});
     }
     saveHoldings(holdings);
     this.reset();
