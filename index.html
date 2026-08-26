@@ -858,7 +858,8 @@
         🔒 本地安全存储
         <div class="popover">
           <b>数据隐私保障说明：</b><br>
-          您的所有股票持仓、成本价、数量及现金流目标数据 100% 仅保存在您当前设备的浏览器（LocalStorage）中，绝不上传至任何后端服务器。
+          您的所有股票持仓、成本价、数量及现金流目标数据 100% 仅保存在您当前设备的浏览器（LocalStorage）中，绝不上传至任何后端服务器。<br>
+          <span style="color:#fbbf24;">⚠️ 数据仅存本机：清除浏览器记录/缓存会<b>永久丢失</b>，请定期「⚙️ 更多设置 → 导出配置与持仓」备份。</span>
         </div>
       </div>
     </div>
@@ -1013,6 +1014,7 @@
         <b style="color: #1d4ed8; font-size: 13px;">🔒 安全与隐私承诺：</b>
         <p style="margin: 4px 0 0 0; color: #1e40af; font-size: 12px; line-height: 1.6;">
           您的所有股票持仓、成本价、持股数量及现金流目标数据 <b>100% 仅保存在您当前设备的浏览器（LocalStorage）中</b>。本系统没有任何后端用户数据库，绝对不会上传或收集您的任何个人资产隐私。
+          <b style="color: #b91c1c;">⚠️ 注意：清除浏览器记录/缓存会导致数据永久丢失，请定期使用「更多设置 → 导出配置与持仓」备份。</b>
         </p>
       </div>
 
@@ -1026,6 +1028,27 @@
     </div>
     <div class="modal-footer" style="justify-content: center;">
       <button type="button" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 10px; font-size: 14px;" onclick="acceptWelcome()">我已充分阅读并知晓</button>
+    </div>
+  </div>
+</div>
+
+<!-- 本地数据备份提醒弹窗（低频：每 30 天最多提醒一次） -->
+<div class="modal-overlay" id="backupRemindModal">
+  <div class="modal-box" style="max-width: 460px;">
+    <div class="modal-header">
+      <h3 class="modal-title">💾 数据仅保存在本机浏览器</h3>
+      <button class="modal-close" onclick="closeBackupRemind()">&times;</button>
+    </div>
+    <div class="modal-body" style="line-height: 1.7; font-size: 13px; color: var(--text-primary);">
+      <p style="margin-top:0;">您的全部持仓、成本、目标与界面设置 <b>100% 保存在当前浏览器的本地存储中</b>，不会上传到任何服务器，这是本工具的隐私优势。</p>
+      <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 10px 12px; border-radius: 8px; margin: 10px 0;">
+        <b style="color: #dc2626; font-size: 12px;">⚠️ 清除浏览器记录/缓存 = 数据永久丢失</b>
+        <p style="margin: 4px 0 0 0; color: #991b1b; font-size: 12px; line-height: 1.6;">清除浏览器历史记录、缓存，或卸载/重装浏览器、更换设备、使用无痕模式，都会导致这些数据<b>无法恢复</b>。</p>
+      </div>
+      <p style="margin: 0; color: var(--text-secondary); font-size: 12px;">💡 <b>建议：</b>定期点击右上角「⚙️ 更多设置 → 导出配置与持仓」下载备份文件；更换设备时用「导入配置数据」一键恢复。</p>
+    </div>
+    <div class="modal-footer" style="justify-content: center;">
+      <button type="button" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 10px; font-size: 14px;" onclick="closeBackupRemind()">我知道了（30 天后再次提醒）</button>
     </div>
   </div>
 </div>
@@ -1306,6 +1329,23 @@ function acceptWelcome() {
     document.getElementById('welcomeModal').style.display = 'none';
 }
 
+// 备份提醒（低频弹窗）：数据存本机浏览器，清除浏览器记录会丢失——每 30 天提醒一次
+function checkBackupRemind() {
+    // 首次访问（免责声明未确认）不打扰，避免两个弹窗叠加
+    if (!localStorage.getItem(STORAGE_WELCOME_KEY)) return;
+    const last = localStorage.getItem(STORAGE_BACKUP_REMIND_KEY);
+    if (last) {
+        const diff = (new Date(getBeijingDateString()) - new Date(last)) / 86400000;
+        if (diff < 30) return; // 30 天内已提醒过
+    }
+    document.getElementById('backupRemindModal').style.display = 'flex';
+}
+
+function closeBackupRemind() {
+    document.getElementById('backupRemindModal').style.display = 'none';
+    try { localStorage.setItem(STORAGE_BACKUP_REMIND_KEY, getBeijingDateString()); } catch (e) {}
+}
+
 function openWelcomeModal() {
     document.getElementById('welcomeModal').style.display = 'flex';
 }
@@ -1319,6 +1359,8 @@ function closeWelcomeModal() {
 const STORAGE_QUOTES_CACHE_KEY = 'yieldcraft_quotes_cache_v1';
 const STORAGE_DIVIDENDS_CACHE_KEY = 'yieldcraft_dividends_cache_v1';
 const DIVIDENDS_CACHE_TTL = 24 * 3600 * 1000; // 分红前端缓存 24h（东财数据极少变动）
+// 本地数据备份提醒（低频弹窗，每 30 天最多一次）
+const STORAGE_BACKUP_REMIND_KEY = 'yieldcraft_backup_remind_v1';
 
 // 北京时间（Asia/Shanghai）——浏览器时区跟随系统，所有日期/时段判断强制用北京时间
 function getBeijingTime(date = new Date()) {
@@ -2659,6 +2701,7 @@ function importData(event) {
 document.addEventListener('DOMContentLoaded', () => {
     refreshData(false);
     checkWelcome();
+    checkBackupRemind();
 });
 </script>
 </body>
