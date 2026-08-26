@@ -348,6 +348,8 @@
   /* 全部列统一居中；列宽由表头/单元内容中最长者决定（table-layout:auto 自适应），不硬编码 */
   th, td { padding: 10px 12px; text-align: center; font-size: 13px; border-bottom: 1px solid var(--border-color); white-space: nowrap; vertical-align: middle; }
   th { background: #f8fafc; color: var(--text-secondary); font-weight: 600; position: sticky; top: 0; z-index: 20; }
+  /* 仅名称列左对齐（多行文本+徽章需要统一左基线，沿用旧版）；其余列保持居中 */
+  td.l, th.l { text-align: left; }
   td.hl { color: var(--red); font-weight: 700; }
   td.paid { color: var(--gold); font-weight: 700; }
   td.zero { color: #94a3b8; }
@@ -368,10 +370,9 @@
     background: #f8fafc;
   }
 
-  /* 表头内容：图钉列（名称列）左右对称预留空间，保证文字仍精确居中，图钉不遮文字 */
+  /* 表头内容：图钉列（名称列，左对齐）右预留图钉空间，不遮文字 */
   .th-content.has-pin {
     display: inline-block;
-    padding-left: 26px;
     padding-right: 26px;
   }
   .pin-btn {
@@ -409,11 +410,11 @@
   .col-setting-item .col-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
   .col-setting-actions { display: flex; align-items: center; gap: 6px; }
 
-  /* 名称列与标签画风统一升级（内容居中，与全表居中风格一致） */
+  /* 名称列与标签画风（内容左对齐：天数徽章/名称/盈亏副行统一左基线，扫视有锚点） */
   .name-container {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     line-height: 1.2;
   }
@@ -1959,14 +1960,15 @@ function renderTableHeader() {
         const pinTitle = isPinned ? '点击取消固定此列' : '点击固定此列到最左侧';
         const pinBtnClass = isPinned ? 'pin-btn active' : 'pin-btn';
 
-        // 全部列统一居中；只有名称列显示图钉按钮，且仅为它左右对称预留空间（文字仍精确居中）
+        // 只有名称列显示图钉按钮并为图钉预留空间；名称列表头左对齐（沿用旧版），其余列居中
         const isNameCol = col.key === 'name';
         const pinBtnHtml = isNameCol
             ? `<span class="${pinBtnClass}" onclick="setPinnedColumn('${col.key}', event)" title="${pinTitle}">📌</span>`
             : '';
         const thContentClass = isNameCol ? 'th-content has-pin' : '';
+        const alignClass = isNameCol ? 'l' : '';
 
-        tr += `<th class="${pinnedClass}">
+        tr += `<th class="${pinnedClass} ${alignClass}">
             <span class="${thContentClass}">${col.label}</span>
             ${pinBtnHtml}
         </th>`;
@@ -1997,6 +1999,8 @@ function renderTable(rows) {
                 const isPinned = pinnedColKey === col.key;
                 const pinnedCls = isPinned ? 'col-pinned-sticky' : '';
                 let cls = [pinnedCls];
+                // 名称列左对齐（多行徽章文本统一左基线），其余列居中
+                if (col.key === 'name') cls.push('l');
 
                 let content = '--';
                 switch (col.key) {
@@ -2054,6 +2058,8 @@ function renderTable(rows) {
             const pinnedCls = isPinned ? 'col-pinned-sticky' : '';
             let content = '';
             let cls = [pinnedCls];
+            // 名称列左对齐（多行徽章文本统一左基线），其余列居中
+            if (col.key === 'name') cls.push('l');
 
             switch (col.key) {
                 case 'code':
