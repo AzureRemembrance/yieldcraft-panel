@@ -59,6 +59,7 @@
   }
   .toast.success { background: #059669; }
   .toast.error { background: #dc2626; }
+  .toast.info { background: #2563eb; }
 
   /* 顶栏与品牌产品 UI */
   .header {
@@ -1215,7 +1216,7 @@ function getActiveColumns() {
 }
 
 // ================== 工具函数 ==================
-function showToast(message, type = 'success') {
+function showToast(message, type = 'success', duration = 2500) {
     const toast = document.getElementById('toast');
     if (!toast) return;
     if (toastTimer) clearTimeout(toastTimer);
@@ -1223,7 +1224,15 @@ function showToast(message, type = 'success') {
     toast.className = `toast show ${type}`;
     toastTimer = setTimeout(() => {
         toast.className = 'toast';
-    }, 2500);
+    }, duration);
+}
+
+// 缓存数据时间展示（MM-DD HH:MM，北京时间），用于"非开盘时段读取缓存"提示
+function formatCacheTime(ts) {
+    const d = new Date(ts);
+    const bj = getBeijingTime(d);
+    const bjDate = getBeijingDateString(d);
+    return `${bjDate.slice(5)} ${String(bj.hour).padStart(2,'0')}:${String(bj.minute).padStart(2,'0')}`;
 }
 
 function getToday() {
@@ -2266,20 +2275,21 @@ async function refreshData(isManual = false) {
         const marketDays = (tradeCalCache && Array.isArray(tradeCalCache.days)) ? tradeCalCache.days : null;
         const [quotesResult, dividendsMap, tradeInfo] = await Promise.all([
             (async () => {
-                let q = null, ts = Date.now();
+                let q = null, ts = Date.now(), fromCache = false;
                 if (!isMarketSession(marketDays)) {
                     const cachedQuotes = loadQuotesCache();
                     // 缓存须覆盖当前全部 code（新增持仓后新 code 不在缓存 → 重新拉取）
                     if (cachedQuotes && codes.every(c => cachedQuotes.data[c] !== undefined)) {
                         q = cachedQuotes.data;
                         ts = cachedQuotes.ts;
+                        fromCache = true;
                     }
                 }
                 if (!q) {
                     q = await fetchQuotes(codes);
                     if (Object.keys(q).length) saveQuotesCache(Date.now(), q);
                 }
-                return { q, ts };
+                return { q, ts, fromCache };
             })(),
             (async () => {
                 const map = {};
@@ -2332,7 +2342,12 @@ async function refreshData(isManual = false) {
         refreshTradeCal(earliestStart, tradeInfo);
 
         if (isManual) {
-            showToast('✅ 已成功获取并刷新最新行情数据！', 'success');
+            if (quotesResult.fromCache) {
+                // 非开盘时段走本地缓存：明确告知数据来源与恢复时机，避免"刷新太快"误导
+                showToast(`⏰ 当前为非开盘时段（盘后/周末/节假日），本次读取本地缓存的最新收盘数据（${formatCacheTime(quotesResult.ts)}）。工作日 9:15 开盘后自动恢复实时行情`, 'info', 5000);
+            } else {
+                showToast('✅ 已成功获取并刷新最新行情数据！', 'success');
+            }
         }
     } catch (err) {
         console.error('刷新数据异常:', err);
