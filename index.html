@@ -573,6 +573,8 @@
   }
   .metric-item { font-size: 12px; color: var(--text-secondary); }
   .metric-item strong { font-size: 13px; color: var(--text-primary); display: block; margin-top: 2px; }
+  /* 指标下方的测算公式说明：弱化小字，与加粗的关键数字区分开 */
+  .metric-item .metric-note { font-size: 11px; color: #94a3b8; display: block; margin-top: 2px; line-height: 1.5; }
   .ladder-bar { height: 10px; background: #e2e8f0; border-radius: 6px; overflow: hidden; margin-top: 14px; }
   .ladder-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #2563eb); border-radius: 6px; transition: width 0.4s ease; }
 
@@ -933,6 +935,8 @@
       · <b>总市值</b> = 当前价 × 持股数；<b>总浮动盈亏</b> = 总市值 - 券商账面总成本（负成本计入）。<br>
       · <b>整体成本股息率</b> = 预计全年总分红 ÷ 投入本金总额；反映基于历史买入本金的实际现金收益率。<br>
       · <b>组合动态股息率</b> = 预计全年总分红 ÷ 当前持仓总市值；反映按照今日市价重置或评估当前持仓组合时的即期现金收益率。<br>
+      · <b>全年总分红（约）</b> = 近 12 个月每股/每份派息合计 × 持股数（按当前派息节奏估算）；<b>月均分红</b> = 全年总分红 ÷ 12。<br>
+      · <b>下期预测</b> = 按各标的近期派息节奏推算的下一笔除息日与预计每股派息；已公告的显示具体日期并标注「已公告」，未公告的仅显示预估年月。<br>
       · <b>持有天数</b> = 自买入日期（不含买入当日）起至最近交易日之间的<b>A股交易日数量</b>（基于上证指数真实交易日历）；仅对已填写买入日期的非观察持仓显示，未填写买入日期或“观察”标的均不显示。<br>
       · <b>固定列小贴士</b> = 仅“名称”列支持固定至表格最左侧，点击表头右侧的 📌 按钮即可切换固定状态。
     </div>
@@ -940,7 +944,7 @@
     <div class="footer-section" style="padding-top: 12px; border-top: 1px dashed var(--border-color);">
       <div class="footer-section-title">⚖️ 法律免责声明与合规说明</div>
       · <b>个人记账辅助工具：</b>本系统仅为个人投资者提供资产持仓记录、历史分红数据整理及被动现金流推算的辅助工具，<b>不推荐任何股票、ETF、基金或金融产品</b>。<br>
-      · <b>不构成投资建议：</b>本面板展示的所有股息率、分红预测、复位模型及场景分析均不构成任何投资建议、财务咨询或收益承诺，投资者据此作出的任何买卖决策风险自担。<br>
+      · <b>不构成投资建议：</b>本面板展示的所有股息率、分红预测、推算模型及场景分析均不构成任何投资建议、财务咨询或收益承诺，投资者据此作出的任何买卖决策风险自担。<br>
       · <b>数据来源与时限：</b>行情数据及历史分红记录均来源于公开市场接口，可能因网络延迟或第三方接口变动存在误差，请以交易所与公司法定公告为准。<br>
       · <b>100% 本地隐私安全保障：</b>本工具为纯前端应用，<b>无任何后端用户数据库</b>。您的所有持仓代码、持股数量、买入成本及现金流目标数据 <b>完全仅保存在您本地浏览器的 LocalStorage 中</b>，绝不会收集或上传您的任何资产隐私数据。
     </div>
@@ -1858,6 +1862,18 @@ function renderCards(rows) {
     `;
 }
 
+// 阶梯指标文案：关键数字加粗醒目，测算公式以弱化小字展示（公式显示优化）
+function buildLadderMetrics(diff, overallYield, yieldPct, totalIncome) {
+    const neededCapital = (diff * 12) / (overallYield || 0.05);
+    const dripYears = totalIncome > 0 ? (diff * 12) / totalIncome : null;
+    const diffStr = diff.toFixed(2);
+    return `
+      <div class="metric-item">距离解锁下一档还差<strong>¥${diffStr}/月</strong></div>
+      <div class="metric-item">补仓升级需再投入本金约<strong>¥${Math.round(neededCapital).toLocaleString()}</strong><span class="metric-note">测算公式：每月缺口 ¥${diffStr} × 12 ÷ 组合动态股息率 ${yieldPct}%</span></div>
+      ${dripYears ? `<div class="metric-item">分红再投资复利自动升档预计<strong>${dripYears.toFixed(1)} 年</strong><span class="metric-note">测算公式：每月缺口 ¥${diffStr} × 12 ÷ 年分红约 ¥${Math.round(totalIncome).toLocaleString()}（假设每期分红全部再投资）</span></div>` : ''}
+    `;
+}
+
 function renderLadder(monthlyAvg, rows) {
     const config = loadGoalConfig();
     let levels = [];
@@ -1868,7 +1884,7 @@ function renderLadder(monthlyAvg, rows) {
         let currentAmt = step;
         let lv = 1;
         while (currentAmt <= target) {
-            levels.push({ level: lv, name: `Lv ${lv} 阶段`, amount: currentAmt });
+            levels.push({ level: lv, name: `Lv.${lv} 阶段`, amount: currentAmt });
             currentAmt += step;
             lv++;
         }
@@ -1899,48 +1915,32 @@ function renderLadder(monthlyAvg, rows) {
     const totalMv = rows.reduce((sum, r) => sum + (r.mv !== null ? r.mv : 0), 0);
     const totalIncome = rows.reduce((sum, r) => sum + r.income, 0);
     const overallYield = totalMv > 0 ? (totalIncome / totalMv) : 0.05;
+    const yieldPct = (overallYield * 100).toFixed(2);
 
     if (!currentLvObj && nextLvObj) {
         progressPct = Math.min(100, Math.max(0, (monthlyAvg / nextLvObj.amount) * 100));
         const diff = nextLvObj.amount - monthlyAvg;
-        descHtml = `当前进度：尚未解锁关卡 👉 首要目标：<span class="ladder-badge">${escapeHtml(nextLvObj.name)}</span>（目标 ¥${nextLvObj.amount}/月）`;
-
-        const neededCapital = (diff * 12) / (overallYield || 0.05);
-        const dripYears = totalIncome > 0 ? (diff * 12) / totalIncome : null;
-
-        metricHtml = `
-          <div class="metric-item">距离解锁下一关还差<strong>¥${diff.toFixed(2)} /月</strong></div>
-          <div class="metric-item">补仓升级需再投入本金约<strong>¥${Math.round(neededCapital).toLocaleString()} (按当前组合动态股息率 ${(overallYield*100).toFixed(2)}% 测算)</strong></div>
-          ${dripYears ? `<div class="metric-item">DRIP 复利自动升级倒计时<strong>约 ${dripYears.toFixed(1)} 年 (若分红全额回购持仓)</strong></div>` : ''}
-        `;
+        descHtml = `当前进度：尚未达到首档，首要目标：<span class="ladder-badge">${escapeHtml(nextLvObj.name)}</span>（目标：每月 ¥${nextLvObj.amount}）`;
+        metricHtml = buildLadderMetrics(diff, overallYield, yieldPct, totalIncome);
     } else if (currentLvObj && nextLvObj) {
         const baseAmt = currentLvObj.amount;
         const targetAmt = nextLvObj.amount;
         progressPct = Math.min(100, Math.max(0, ((monthlyAvg - baseAmt) / (targetAmt - baseAmt)) * 100));
         const diff = targetAmt - monthlyAvg;
-
-        descHtml = `当前成就：<span class="ladder-badge">${escapeHtml(currentLvObj.name)}</span> 👉 下一关卡：<span class="ladder-badge">${escapeHtml(nextLvObj.name)}</span>（目标 ¥${targetAmt}/月）`;
-
-        const neededCapital = (diff * 12) / (overallYield || 0.05);
-        const dripYears = totalIncome > 0 ? (diff * 12) / totalIncome : null;
-
-        metricHtml = `
-          <div class="metric-item">距离解锁下一关还差<strong>¥${diff.toFixed(2)} /月</strong></div>
-          <div class="metric-item">补仓升级需再投入本金约<strong>¥${Math.round(neededCapital).toLocaleString()} (按当前组合动态股息率 ${(overallYield*100).toFixed(2)}% 测算)</strong></div>
-          ${dripYears ? `<div class="metric-item">DRIP 复利自动升级倒计时<strong>约 ${dripYears.toFixed(1)} 年 (分红全额回购持仓)</strong></div>` : ''}
-        `;
+        descHtml = `当前进度：<span class="ladder-badge">${escapeHtml(currentLvObj.name)}</span> 👉 下一档：<span class="ladder-badge">${escapeHtml(nextLvObj.name)}</span>（目标：每月 ¥${targetAmt}）`;
+        metricHtml = buildLadderMetrics(diff, overallYield, yieldPct, totalIncome);
     } else {
         progressPct = 100;
         const topLv = currentLvObj || levels[levels.length - 1];
-        descHtml = `🎉 恭喜！已达成最高阶段：<span class="ladder-badge gold">${escapeHtml(topLv.name)}</span>（月均分红 ¥${monthlyAvg.toFixed(2)}）`;
-        metricHtml = `<div class="metric-item">财务自由终极关卡已解锁！你可以点击右上角「🎯 设置目标」设定更高阶的生活场景！</div>`;
+        descHtml = `🎉 恭喜！已达当前最高阶段：<span class="ladder-badge gold">${escapeHtml(topLv.name)}</span>（月均分红 ¥${monthlyAvg.toFixed(2)}）`;
+        metricHtml = `<div class="metric-item">已达当前设置的最高目标。若想挑战更高的被动现金流，点击右上角「🎯 设置目标」调整阶梯即可。</div>`;
     }
 
     document.getElementById('ladderContainer').innerHTML = `
       <div class="ladder-card">
         <div class="ladder-header">
           <div class="ladder-title">📊 现金流场景阶梯</div>
-          <button class="btn btn-outline" style="padding:4px 10px; font-size:12px;" onclick="openGoalModal()">🎯 调整目标阶梯</button>
+          <button class="btn btn-outline" style="padding:4px 10px; font-size:12px;" onclick="openGoalModal()">🎯 设置目标</button>
         </div>
         <div class="ladder-info">${descHtml}</div>
         <div class="ladder-metrics">${metricHtml}</div>
