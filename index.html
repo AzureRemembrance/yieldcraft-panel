@@ -904,11 +904,11 @@
   </div>
 
   <div id="addStockPanel" style="display:none;">
-    <form id="addForm" class="edit-form">
-      <input type="text" name="code" placeholder="股票/ETF代码 (如 601668)" pattern="[0-9]{6}" required>
-      <input type="number" step="any" name="shares" placeholder="持股数量 (留空或0即为观察)">
-      <input type="number" step="any" name="cost" placeholder="成本价 (选填)">
-      <input type="date" name="purchaseDate" title="买入日期 (选填，填写后按交易日统计持仓天数)">
+    <form id="addForm" class="edit-form" autocomplete="off">
+      <input type="text" name="code" placeholder="股票/ETF代码 (如 601668)" pattern="[0-9]{6}" required autocomplete="off">
+      <input type="number" step="any" name="shares" placeholder="持股数量 (留空或0即为观察)" autocomplete="off">
+      <input type="number" step="any" name="cost" placeholder="成本价 (选填)" autocomplete="off">
+      <input type="date" name="purchaseDate" title="买入日期 (选填，填写后按交易日统计持仓天数)" autocomplete="off">
       <button type="submit" class="btn btn-primary">确认添加</button>
     </form>
   </div>
@@ -1076,11 +1076,11 @@
       <div id="modeStepPanel" style="display:none;">
         <div class="form-group">
           <label>终极月度现金流目标 (元/月)</label>
-          <input type="number" id="stepTargetMonthly" value="5000" step="100">
+          <input type="number" id="stepTargetMonthly" value="5000" step="100" autocomplete="off">
         </div>
         <div class="form-group">
           <label>每级递增金额 (元/级)</label>
-          <input type="number" id="stepAmount" value="500" step="50">
+          <input type="number" id="stepAmount" value="500" step="50" autocomplete="off">
         </div>
       </div>
     </div>
@@ -2408,15 +2408,15 @@ function renderDrawerHoldings() {
           <div class="drawer-card-grid">
             <div class="drawer-input-group">
               <label>持股数量 (0代表仅观察)</label>
-              <input type="number" class="input-shares" step="any" min="0" value="${item.shares !== null && item.shares !== undefined ? item.shares : ''}" placeholder="0">
+              <input type="number" class="input-shares" step="any" min="0" value="${item.shares !== null && item.shares !== undefined ? item.shares : ''}" placeholder="0" autocomplete="off">
             </div>
             <div class="drawer-input-group">
               <label>成本价 (元)</label>
-              <input type="number" class="input-cost" step="any" value="${item.cost !== null && item.cost !== undefined ? item.cost : ''}" placeholder="买入单价 (选填)">
+              <input type="number" class="input-cost" step="any" value="${item.cost !== null && item.cost !== undefined ? item.cost : ''}" placeholder="买入单价 (选填)" autocomplete="off">
             </div>
             <div class="drawer-input-group" style="grid-column: 1 / -1;">
               <label>买入日期 (选填，填写后按交易日统计持仓天数)</label>
-              <input type="date" class="input-purchase-date" value="${item.purchaseDate ? escapeHtml(item.purchaseDate) : ''}">
+              <input type="date" class="input-purchase-date" value="${item.purchaseDate ? escapeHtml(item.purchaseDate) : ''}" autocomplete="off">
             </div>
           </div>
         </div>
@@ -2591,8 +2591,8 @@ function addCustomLevelRow(name = '', amount = '') {
     const div = document.createElement('div');
     div.className = 'custom-level-row';
     div.innerHTML = `
-        <input type="text" class="level-name-input" placeholder="关卡名称 (如外卖自由)" value="${escapeHtml(name)}">
-        <input type="number" class="level-amount-input" placeholder="目标金额(元/月)" value="${amount}">
+        <input type="text" class="level-name-input" placeholder="关卡名称 (如外卖自由)" value="${escapeHtml(name)}" autocomplete="off">
+        <input type="number" class="level-amount-input" placeholder="目标金额(元/月)" value="${amount}" autocomplete="off">
         <button type="button" class="del-btn" onclick="this.parentElement.remove()">删除</button>
     `;
     container.appendChild(div);
