@@ -344,19 +344,15 @@
     margin-bottom: 20px;
     -webkit-overflow-scrolling: touch;
   }
-  table { width: 100%; min-width: 1100px; border-collapse: separate; border-spacing: 0; table-layout: auto; }
-  /* 默认居中对齐，左对齐列通过 .l 类覆盖 */
+  table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: auto; }
+  /* 全部列统一居中；列宽由表头/单元内容中最长者决定（table-layout:auto 自适应），不硬编码 */
   th, td { padding: 10px 12px; text-align: center; font-size: 13px; border-bottom: 1px solid var(--border-color); white-space: nowrap; vertical-align: middle; }
   th { background: #f8fafc; color: var(--text-secondary); font-weight: 600; position: sticky; top: 0; z-index: 20; }
-  td.l, th.l { text-align: left; }
   td.hl { color: var(--red); font-weight: 700; }
   td.paid { color: var(--gold); font-weight: 700; }
   td.zero { color: #94a3b8; }
   td.pos { color: var(--red); font-weight: 600; }
   td.neg { color: var(--green); font-weight: 600; }
-
-  /* 代码列基础宽度限制 */
-  .col-code { width: 80px; min-width: 80px; max-width: 80px; text-align: left; }
 
   /* 自定义固定列样式 (动态应用至选中的列) */
   th.col-pinned-sticky, td.col-pinned-sticky {
@@ -372,9 +368,10 @@
     background: #f8fafc;
   }
 
-  /* 表头内容：文本直接占用，为图钉留出空间 */
-  .th-content {
+  /* 表头内容：图钉列（名称列）左右对称预留空间，保证文字仍精确居中，图钉不遮文字 */
+  .th-content.has-pin {
     display: inline-block;
+    padding-left: 26px;
     padding-right: 26px;
   }
   .pin-btn {
@@ -412,11 +409,11 @@
   .col-setting-item .col-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
   .col-setting-actions { display: flex; align-items: center; gap: 6px; }
 
-  /* 名称列与标签画风统一升级 */
+  /* 名称列与标签画风统一升级（内容居中，与全表居中风格一致） */
   .name-container {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
     line-height: 1.2;
   }
@@ -1366,8 +1363,11 @@ function closeWelcomeModal() {
 // ================== API 调用与状态 ==================
 // ---- 前端防刷缓存键（减少 API 调用）----
 const STORAGE_QUOTES_CACHE_KEY = 'yieldcraft_quotes_cache_v1';
-const STORAGE_DIVIDENDS_CACHE_KEY = 'yieldcraft_dividends_cache_v1';
-const DIVIDENDS_CACHE_TTL = 24 * 3600 * 1000; // 分红前端缓存 24h（东财数据极少变动）
+// v2：空数组（判定"无分红"）只信任 1h，防止东财接口偶发抖动把"无分红"钉死 24h；
+// 升级键名同时强制清掉旧版遗留的脏缓存（如 513530 曾缓存空记录）
+const STORAGE_DIVIDENDS_CACHE_KEY = 'yieldcraft_dividends_cache_v2';
+const DIVIDENDS_CACHE_TTL = 24 * 3600 * 1000; // 有分红记录：缓存 24h（东财数据极少变动）
+const DIVIDENDS_EMPTY_CACHE_TTL = 1 * 3600 * 1000; // 空结果（无分红）：只缓存 1h，尽快自愈
 // 本地数据备份提醒（低频弹窗，每 30 天最多一次）
 const STORAGE_BACKUP_REMIND_KEY = 'yieldcraft_backup_remind_v1';
 
@@ -1956,17 +1956,18 @@ function renderTableHeader() {
     activeColumns.forEach(col => {
         const isPinned = pinnedColKey === col.key;
         const pinnedClass = isPinned ? 'col-pinned-sticky' : '';
-        const alignClass = col.align === 'left' ? 'l' : '';
         const pinTitle = isPinned ? '点击取消固定此列' : '点击固定此列到最左侧';
         const pinBtnClass = isPinned ? 'pin-btn active' : 'pin-btn';
 
-        // 只有名称列显示图钉按钮
-        const pinBtnHtml = col.key === 'name'
+        // 全部列统一居中；只有名称列显示图钉按钮，且仅为它左右对称预留空间（文字仍精确居中）
+        const isNameCol = col.key === 'name';
+        const pinBtnHtml = isNameCol
             ? `<span class="${pinBtnClass}" onclick="setPinnedColumn('${col.key}', event)" title="${pinTitle}">📌</span>`
             : '';
+        const thContentClass = isNameCol ? 'th-content has-pin' : '';
 
-        tr += `<th class="${pinnedClass} ${alignClass}">
-            <span class="th-content">${col.label}</span>
+        tr += `<th class="${pinnedClass}">
+            <span class="${thContentClass}">${col.label}</span>
             ${pinBtnHtml}
         </th>`;
     });
@@ -1996,8 +1997,6 @@ function renderTable(rows) {
                 const isPinned = pinnedColKey === col.key;
                 const pinnedCls = isPinned ? 'col-pinned-sticky' : '';
                 let cls = [pinnedCls];
-                if (col.align === 'left') cls.push('l');
-                if (col.key === 'code') cls.push('col-code');
 
                 let content = '--';
                 switch (col.key) {
@@ -2056,11 +2055,8 @@ function renderTable(rows) {
             let content = '';
             let cls = [pinnedCls];
 
-            if (col.align === 'left') cls.push('l');
-
             switch (col.key) {
                 case 'code':
-                    cls.push('col-code');
                     content = escapeHtml(r.code);
                     break;
                 case 'name':
@@ -2299,7 +2295,9 @@ async function refreshData(isManual = false) {
                 const missCodes = [];
                 for (const code of codes) {
                     const c = cache[code];
-                    if (!inWindow && c && Array.isArray(c.records) && (now - (c.ts || 0)) < DIVIDENDS_CACHE_TTL) {
+                    // 有记录按 24h TTL；空记录（无分红）只信 1h，避免脏空缓存长期掩盖真实分红
+                    const ttl = (c && Array.isArray(c.records) && c.records.length) ? DIVIDENDS_CACHE_TTL : DIVIDENDS_EMPTY_CACHE_TTL;
+                    if (!inWindow && c && Array.isArray(c.records) && (now - (c.ts || 0)) < ttl) {
                         map[code] = c.records;   // 命中：零请求
                     } else {
                         missCodes.push(code);
