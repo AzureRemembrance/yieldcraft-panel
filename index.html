@@ -1904,6 +1904,14 @@ function renderTable(rows) {
                             cls.push('zero');
                         }
                         break;
+                    case 'income':
+                        if (isWatch) {
+                            content = '<span class="badge-observe">观察</span>';
+                        } else if (r.freq === '无分红') {
+                            content = '无分红';
+                            cls.push('zero');
+                        }
+                        break;
                     case 'freq':
                         if (r.freq === '无分红') cls.push('zero');
                         content = escapeHtml(r.freq);
@@ -1970,7 +1978,14 @@ function renderTable(rows) {
                     }
                     break;
                 case 'income':
-                    content = '¥' + r.income.toFixed(2);
+                    if (isWatch) {
+                        content = '<span class="badge-observe">观察</span>';
+                    } else if (r.freq === '无分红') {
+                        content = '无分红';
+                        cls.push('zero');
+                    } else {
+                        content = '¥' + r.income.toFixed(2);
+                    }
                     break;
                 case 'freq':
                     if (r.freq === '无分红') cls.push('zero');
