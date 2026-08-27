@@ -1406,17 +1406,34 @@ function inAnnouncementWindow() {
 
 // A股盘中会话：09:15 ~ 15:00（北京时间）。
 // 其余时段（15:00~次日09:15）行情=最新收盘价，直接复用缓存，零 /api/quotes 请求。
-// 传入交易日历 days 时再校验"今天是否交易日"：周末/节假日白天也走缓存
-// （盘后固定价格交易 15:05~15:30 按收盘价成交，不产生新价格，无需特殊处理）。
-// days 为空（日历未就绪）时退回纯时钟判断。
+// 判定要点（2026-08-28 修复"盘中永远提示非开盘时段"）：
+//   腾讯日K接口盘中【不含当天K线】（收盘后才出现），所以"日历最后一天=昨天"是正常滞后，
+//   绝不能因"今天不在日历里"就判定休市；否则交易日的每个上午都读旧缓存、行情永不更新。
+// 规则：① 时钟 09:15~15:00；② 周末精确排除（A股周六周日必休市）；③ 日历滞后
+//   ≤10 个自然日（覆盖日常滞后1天、跨周末3天、春节/国庆后首日）→ 按交易日实时拉取。
+//   代价：法定节假日的工作日会多打几次行情接口（CDN 15s 缓存兜底，返回不变收盘价，无害）。
+// days 为空（日历未就绪）时退回纯时钟 + 工作日判断。
+// 注：此处的宽松判断仅用于"是否拉实时行情"，与【持有天数】统计口径无关
+//（天数统计仍坚持精确日历，不做任何近似，见已知坑#2）。
 function isMarketSession(days) {
     const { hour, minute } = getBeijingTime();
     if (hour < 9 || hour >= 15) return false;
     if (hour === 9 && minute < 15) return false;
+
+    // 周末精确判定（A股周六、周日必休市）
+    const dow = new Date(getBeijingDateString() + 'T00:00:00+08:00').getDay();
+    if (dow === 0 || dow === 6) return false;
+
     if (Array.isArray(days) && days.length) {
         const today = getBeijingDateString();
-        if (!days.includes(today)) return false; // 今天不在交易日历=周末/节假日
+        if (days.includes(today)) return true; // 今天明确在日历里 = 交易日
+
+        // 今天不在日历里：日K盘中滞后 → 间隔 ≤10 天仍视为交易日（实时拉取）
+        const gap = dateDiffInDays(parseDate(days[days.length - 1]), parseDate(today));
+        return gap <= 10;
     }
+
+    // 日历未就绪：退回纯时钟 + 工作日判断
     return true;
 }
 
