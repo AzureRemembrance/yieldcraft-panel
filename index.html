@@ -1437,6 +1437,45 @@ function isMarketSession(days) {
     return true;
 }
 
+// 判定缓存快照是否为「过期的盘中价」——修复「盘后数据停留在盘中旧缓存」的核心守卫：
+// ① 缓存写入日=今天：交易日历盘中【不含当天】（腾讯日K滞后），无法用日历确认今天是否为
+//    交易日，直接按「早于 15:00 收盘」判定（15:00 整起腾讯返回的即为收盘价，15:00 前写入
+//    的必是盘中价）；
+// ② 缓存写入日=历史日期：用交易日历确认该日是否为交易日，交易日且早于 15:00 写入=盘中价；
+//    周末/节假日写入的缓存（数据本就是最近收盘价）不算过期。
+// days 为交易日历数组（可空），来自 yieldcraft_trade_calendar_v2（marketDays）。
+function isStaleIntradaySnapshot(ts, days) {
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return false;
+    const { hour } = getBeijingTime(d);
+    const cacheDay = getBeijingDateString(d);
+    // ① 写入日=今天：盘中日历滞后不可知 → 按 15:00 判定
+    if (cacheDay === getBeijingDateString()) return hour < 15;
+    // ② 写入日=历史交易日：日历可精确确认（覆盖周五盘中价在周末/次日早上被误当收盘价）
+    if (Array.isArray(days) && days.length && days.includes(cacheDay)) return hour < 15;
+    return false;
+}
+
+// ================== 动态刷新按钮/Toast 文案联动 ==================
+// 复用 isMarketSession(marketDays)：盘中 → 「获取实时行情」+ 实时行情 toast；
+// 盘后/周末/节假日 → 「同步最新数据」+ 收盘数据 toast。
+// marketDays 传交易日历数组（可空，来自 yieldcraft_trade_calendar_v2）。
+// 单一文案来源（getRefreshUILabels），按钮与手动刷新成功 toast 共用，防止文案漂移。
+// 按钮校准时机：页面初始化（DOMContentLoaded）、refreshData 完成（finally）、
+// 交易日历异步加载完成（applyTradeCal）——保证文案始终与最新盘中/盘后判定一致。
+function getRefreshUILabels(marketDays) {
+    const isSession = isMarketSession(marketDays);
+    return isSession
+        ? { btn: '获取实时行情', toast: '✅ 已成功获取最新实时行情数据！' }
+        : { btn: '同步最新数据', toast: '✅ 已成功同步最新收盘数据！' };
+}
+
+function updateRefreshBtnLabel(marketDays) {
+    const btn = document.getElementById('refreshBtn');
+    if (!btn) return;
+    btn.textContent = getRefreshUILabels(marketDays).btn;
+}
+
 // 行情缓存：{ ts: 时间戳, data: {code: quote} }（盘后无 TTL——收盘价就是最新有效价）
 function loadQuotesCache() {
     try {
@@ -1477,10 +1516,14 @@ function setOnlineStatus(online) {
     }
 }
 
-async function fetchQuotes(codes) {
+// bustCache=true 时在 URL 追加时间戳参数 &_t=Date.now()：Cloudflare 按完整 URL 做边缘缓存
+// （/api/quotes 为 15s s-maxage），时间戳使 URL 唯一 → 强制穿透 CDN 直达 Worker 抓最新数据。
+// 用于：手动强刷、盘后补拉收盘价（防止命中 15s 内残留的盘中旧边缘副本）。
+async function fetchQuotes(codes, bustCache = false) {
     if (!codes.length) return {};
     try {
-        const url = `${API_BASE}/api/quotes?codes=${codes.join(',')}`;
+        const qs = codes.join(',');
+        const url = `${API_BASE}/api/quotes?codes=${qs}${bustCache ? `&_t=${Date.now()}` : ''}`;
         const resp = await fetch(url);
         if (!resp.ok) throw new Error('行情请求失败');
         return await resp.json();
@@ -2247,6 +2290,8 @@ function applyTradeCal(tradeCal) {
         r.holdDays = holdDays;
     });
     renderTable(currentRows);
+    // 交易日历就绪后重新校准刷新按钮文案（异步拉取的新日历可能改变盘中/盘后判定）
+    updateRefreshBtnLabel(tradeCal.days);
 }
 
 // 获取交易日历：优先本地缓存，否则后台拉取并缓存。
@@ -2272,7 +2317,8 @@ function refreshTradeCal(earliestStart, tradeInfo) {
 // ================== 主数据刷新逻辑 ==================
 async function refreshData(isManual = false) {
     const btn = document.getElementById('refreshBtn');
-    const originalText = btn ? btn.textContent : '获取最新行情';
+    // 提升到函数级：finally 中需依据 marketDays 恢复动态按钮文案（try 块内 const 在 finally 不可见）
+    let marketDays = null;
 
     if (btn) {
         btn.disabled = true;
@@ -2288,24 +2334,33 @@ async function refreshData(isManual = false) {
 
     try {
         // 关键路径只等行情+分红+交易日参考；交易日历列表不阻塞渲染（徽章异步填充）
-        // —— 防刷：盘后复用行情缓存（收盘价=最新有效价）；分红 24h 缓存但公告窗口
-        //    （15:00~21:00）强制实时；命中即零 API 请求
+        // —— 防刷：盘后复用行情缓存，但排除「当天/历史交易日」的盘中旧快照
+        //    （isStaleIntradaySnapshot）；手动刷新强制穿透拉最新收盘价；
+        //    分红 24h 缓存但公告窗口（15:00~21:00）强制实时；命中即零 API 请求
         const tradeCalCache = loadTradeCalCache(); // 含交易日列表，用于判断今天是否交易日
-        const marketDays = (tradeCalCache && Array.isArray(tradeCalCache.days)) ? tradeCalCache.days : null;
+        marketDays = (tradeCalCache && Array.isArray(tradeCalCache.days)) ? tradeCalCache.days : null;
         const [quotesResult, dividendsMap, tradeInfo] = await Promise.all([
             (async () => {
                 let q = null, ts = Date.now(), fromCache = false;
-                if (!isMarketSession(marketDays)) {
+                // 盘后缓存命中条件（2026-08-28 修复「盘后停留在盘中旧缓存」）：
+                // ① 非盘中时段；② 非手动刷新（手动=强制穿透，不读本地缓存）；
+                // ③ 缓存覆盖全部 code（新增持仓后新 code 不在缓存 → 重新拉取）；
+                // ④ 缓存快照不是过期的盘中价（isStaleIntradaySnapshot，如 13:24 的盘中数据
+                //    不能冒充 15:00 后的收盘价）
+                if (!isManual && !isMarketSession(marketDays)) {
                     const cachedQuotes = loadQuotesCache();
-                    // 缓存须覆盖当前全部 code（新增持仓后新 code 不在缓存 → 重新拉取）
-                    if (cachedQuotes && codes.every(c => cachedQuotes.data[c] !== undefined)) {
+                    if (cachedQuotes && codes.every(c => cachedQuotes.data[c] !== undefined)
+                        && !isStaleIntradaySnapshot(cachedQuotes.ts, marketDays)) {
                         q = cachedQuotes.data;
                         ts = cachedQuotes.ts;
                         fromCache = true;
                     }
                 }
                 if (!q) {
-                    q = await fetchQuotes(codes);
+                    // 穿透拉取：手动强刷或盘后补拉收盘价时给 URL 追加时间戳 _t，
+                    // 绕过 Cloudflare 边缘缓存（quotes 15s s-maxage）中残留的盘中旧数据
+                    const bustCache = isManual || !isMarketSession(marketDays);
+                    q = await fetchQuotes(codes, bustCache);
                     if (Object.keys(q).length) saveQuotesCache(Date.now(), q);
                 }
                 return { q, ts, fromCache };
@@ -2363,12 +2418,10 @@ async function refreshData(isManual = false) {
         refreshTradeCal(earliestStart, tradeInfo);
 
         if (isManual) {
-            if (quotesResult.fromCache) {
-                // 非开盘时段走本地缓存：明确告知数据来源与恢复时机，避免"刷新太快"误导
-                showToast(`⏰ 当前为非开盘时段（盘后/周末/节假日），本次读取本地缓存的最新收盘数据（${formatCacheTime(quotesResult.ts)}）。工作日 9:15 开盘后自动恢复实时行情`, 'info', 5000);
-            } else {
-                showToast('✅ 已成功获取并刷新最新行情数据！', 'success');
-            }
+            // 手动刷新已强制穿透（绕过本地缓存与 CDN 15s 边缘缓存），必然拿到最新数据；
+            // toast 与按钮文案联动：盘中→「实时行情」，盘后/休市/周末/节假日→「收盘数据」，
+            // 让用户明确知道盘后刷到的是收盘价而非盘中新价
+            showToast(getRefreshUILabels(marketDays).toast, 'success');
         }
     } catch (err) {
         console.error('刷新数据异常:', err);
@@ -2379,7 +2432,8 @@ async function refreshData(isManual = false) {
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.textContent = originalText;
+            // 按当前盘中/盘后状态恢复动态文案（替代固定 originalText）
+            updateRefreshBtnLabel(marketDays);
         }
     }
 }
@@ -2735,6 +2789,9 @@ function importData(event) {
 
 // ================== 初始化 ==================
 document.addEventListener('DOMContentLoaded', () => {
+    // 先用本地交易日历校准刷新按钮文案（refreshData 完成后会再校准一次）
+    const cal = loadTradeCalCache();
+    updateRefreshBtnLabel(cal && Array.isArray(cal.days) ? cal.days : null);
     refreshData(false);
     checkWelcome();
     checkBackupRemind();
