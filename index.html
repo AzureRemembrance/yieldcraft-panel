@@ -1606,26 +1606,12 @@ function classifyFrequencyByCount(n12) {
     return '不定期';
 }
 
-// 按派息间隔中位数（天）分类频率：比"近12个月次数"稳健，避免 12 个月窗口边界 ±1 导致档位跳变
-function classifyFrequencyByInterval(medianDays) {
-    if (medianDays <= 45) return '每月';
-    if (medianDays <= 75) return '每两月';
-    if (medianDays <= 105) return '每季度';
-    if (medianDays <= 150) return '约每4个月';
-    if (medianDays <= 275) return '每半年';
-    return '每年';
-}
-
 function analyzeDividends(records, today) {
     const analysis = {
         count: records.length, frequency: '无分红', ttm_per_share: 0.0, ttm_count: 0,
-        latest: null, next_est: null, next_announced: false, est_annual_per_share: 0.0
+        latest: null, next_est: null, next_announced: false, est_annual_per_share: 0.0, annual_totals: {}
     };
     if (!records.length) return analysis;
-
-    // 防御：按除息日升序排列（后端已排序，但前端缓存/导入数据可能乱序；
-    // 乱序会导致派息间隔算成负数 → 频率被误判为"每月"）
-    records = records.slice().sort((a, b) => (a.ex_date || '').localeCompare(b.ex_date || ''));
 
     const cutoff = new Date(today);
     cutoff.setFullYear(cutoff.getFullYear() - 1);
@@ -1637,28 +1623,34 @@ function analyzeDividends(records, today) {
             ttmSum += r.per_share;
             ttmN++;
         }
+        const y = r.year || r.ex_date.substring(0,4);
+        if (!analysis.annual_totals[y]) analysis.annual_totals[y] = 0;
+        analysis.annual_totals[y] = Math.round((analysis.annual_totals[y] + r.per_share) * 100000) / 100000;
     }
     analysis.ttm_per_share = Math.round(ttmSum * 100000) / 100000;
     analysis.ttm_count = ttmN;
 
-    // 年度分红口径 = 严格"近12个月"每股/每份派息合计（与页脚说明一致）。
-    // 近12个月无派息(ttm=0) 即 est=0，不再回退到历史年份数据——
-    // 否则"停派>12个月"的标的会永久显示过期分红金额，误导用户。
-    analysis.est_annual_per_share = analysis.ttm_per_share;
+    if (analysis.ttm_per_share > 0) {
+        analysis.est_annual_per_share = analysis.ttm_per_share;
+    } else if (Object.keys(analysis.annual_totals).length) {
+        const years = Object.keys(analysis.annual_totals).sort();
+        analysis.est_annual_per_share = analysis.annual_totals[years[years.length-1]];
+    } else {
+        analysis.est_annual_per_share = records[records.length-1].per_share;
+    }
 
     analysis.latest = records[records.length-1];
-    // 频率判断：优先用「派息间隔中位数」（比"近12个月派息次数"稳健——12 个月窗口
-    // 边界移动会让次数 ±1，导致每季度派息标的在"约每4个月/每季度/每两月"间跳变）；
-    // 记录不足 2 条（无法算间隔）才退回次数口径。
-    const dates = records.map(r => parseDate(r.ex_date)).filter(d => d);
-    if (dates.length >= 2) {
-        const intervals = [];
-        for (let i = 0; i < dates.length - 1; i++) intervals.push(dateDiffInDays(dates[i], dates[i+1]));
-        intervals.sort((a,b)=>a-b);
-        const median = intervals[Math.floor(intervals.length/2)];
-        analysis.frequency = classifyFrequencyByInterval(median);
-    } else {
+    if (analysis.ttm_count >= 1) {
         analysis.frequency = classifyFrequencyByCount(analysis.ttm_count);
+    } else {
+        const dates = records.map(r => parseDate(r.ex_date)).filter(d => d);
+        if (dates.length >= 2) {
+            const intervals = [];
+            for (let i = 0; i < dates.length - 1; i++) intervals.push(dateDiffInDays(dates[i], dates[i+1]));
+            intervals.sort((a,b)=>a-b);
+            const median = intervals[Math.floor(intervals.length/2)];
+            analysis.frequency = median > 200 ? '每年' : (median > 75 ? '每半年' : '不定期');
+        }
     }
 
     const upcoming = records.filter(r => { const d = parseDate(r.ex_date); return d && d > today; });
@@ -1733,7 +1725,7 @@ async function buildRows(holdings, quotes, dividendsMap, today) {
         let holdDays = null;
 
         rows.push({
-            code, name: quote.name || '', type: typ, price, pct, cost, shares, mv,
+            code, name: quote.name || h.name || '', type: typ, price, pct, cost, shares, mv,
             costTotal, capitalEmployed, freq: analysis.frequency, yieldCost, yieldPrice,
             estAnnual: est, income, next: analysis.next_est, nextAnnounced: analysis.next_announced,
             holdDays, records: recs, analysis
@@ -2744,7 +2736,7 @@ function exportData() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `yieldcraft_backup_${getBeijingDateString()}.json`;
+    a.download = `yieldcraft_backup_${getToday().toISOString().slice(0,10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
 }
