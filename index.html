@@ -888,6 +888,7 @@
     <button type="button" class="btn btn-outline" onclick="openEditDrawer()">✏️ 修改持仓</button>
     <button type="button" class="btn btn-purple" onclick="openGoalModal()">🎯 设置目标</button>
     <button type="button" class="btn btn-success" id="refreshBtn" onclick="refreshData(true)">获取最新行情</button>
+    <button type="button" class="btn btn-outline" id="copyBtn" onclick="copyHoldings()" title="复制当前持仓快照到剪贴板">📋 一键复制</button>
 
     <!-- 更多设置下拉菜单 -->
     <div class="dropdown">
@@ -2717,6 +2718,108 @@ function saveGoalFromModal() {
     saveGoalConfig(config);
     closeGoalModal();
     refreshData();
+}
+
+// ================== 一键复制持仓快照 ==================
+// 将当前持仓 + 概览汇总生成为「制表符分隔」的纯文本：
+// 粘贴到 Excel/WPS 会自动分列；粘贴到微信/记事本也清晰可读。
+function buildCopyText(rows) {
+    const totalBookCost = rows.reduce((sum, r) => sum + (r.costTotal !== null ? r.costTotal : 0), 0);
+    const totalInvested = rows.reduce((sum, r) => sum + r.capitalEmployed, 0);
+    const totalIncome = rows.reduce((sum, r) => sum + r.income, 0);
+    const totalMv = rows.reduce((sum, r) => sum + (r.mv !== null ? r.mv : 0), 0);
+    const monthlyAvg = totalIncome / 12;
+    const yc = totalInvested ? (totalIncome / totalInvested * 100) : null;
+    const yp = totalMv > 0 ? (totalIncome / totalMv * 100) : null;
+
+    const L = [];
+    L.push('YieldCraft 息流 · 持仓快照');
+    const timeEl = document.getElementById('dataTimeText');
+    L.push('更新时间：' + (timeEl ? timeEl.textContent.replace(/^更新于\s*/, '') : ''));
+    L.push('');
+    L.push('【概览】');
+    L.push('总市值\t¥' + totalMv.toFixed(2));
+    L.push('投入本金\t¥' + totalInvested.toFixed(2));
+    L.push('全年总分红(约)\t¥' + totalIncome.toFixed(2));
+    L.push('月均分红(约)\t¥' + monthlyAvg.toFixed(2));
+    L.push('整体成本股息率\t' + (yc ? yc.toFixed(3) + '%' : '--'));
+    L.push('组合动态股息率\t' + (yp ? yp.toFixed(3) + '%' : '--'));
+    L.push('');
+    L.push('【持仓明细】');
+    L.push('代码\t名称\t成本股息率\t现价股息率\t下期预测\t年度分红\t分红频率\t成本\t数量\t现价\t今日涨跌');
+
+    for (const r of rows) {
+        const isWatch = r.shares === 0;
+
+        const cost = isWatch ? '观察' : (r.cost !== null ? r.cost.toFixed(3) : '--');
+        const shares = isWatch ? '观察' : String(r.shares);
+
+        const yieldCost = isWatch ? '观察'
+            : (r.freq === '无分红' ? '无分红'
+                : (r.yieldCost !== null ? r.yieldCost.toFixed(3) + '%' : (r.cost !== null && r.cost <= 0 ? '已回本∞' : '--')));
+        const yieldPrice = r.freq === '无分红' ? '无分红' : (r.yieldPrice !== null ? r.yieldPrice.toFixed(3) + '%' : '--');
+
+        let next;
+        if (r.freq === '无分红') {
+            next = '无分红';
+        } else if (r.next) {
+            const nd = r.next[0], amt = r.next[1];
+            const tag = r.nextAnnounced ? '' : '约 ';
+            const ds = r.nextAnnounced
+                ? `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}-${String(nd.getDate()).padStart(2,'0')}`
+                : `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
+            next = `${ds} ${tag}${amt.toFixed(4)}元/股`;
+        } else {
+            next = '数据不足';
+        }
+
+        const income = isWatch ? '观察' : (r.freq === '无分红' ? '无分红' : '¥' + r.income.toFixed(2));
+
+        const price = r.price !== null ? r.price.toFixed(3) : '--';
+        const pct = r.pct !== null ? (r.pct >= 0 ? '+' : '') + r.pct.toFixed(3) + '%' : '--';
+
+        L.push([r.code, r.name, yieldCost, yieldPrice, next, income, r.freq, cost, shares, price, pct].join('\t'));
+    }
+    return L.join('\n');
+}
+
+async function copyTextToClipboard(text) {
+    // 优先现代 Clipboard API（需安全上下文）；否则回退 textarea + execCommand 兼容移动端/老浏览器
+    if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+    if (!ok) throw new Error('copy failed');
+}
+
+async function copyHoldings() {
+    if (!currentRows || !currentRows.length) {
+        showToast('暂无持仓数据可复制', 'info');
+        return;
+    }
+    const btn = document.getElementById('copyBtn');
+    try {
+        const text = buildCopyText(currentRows);
+        await copyTextToClipboard(text);
+        if (btn) btn.textContent = '✅ 已复制';
+        showToast('✅ 已复制持仓快照到剪贴板！', 'success');
+        if (btn) setTimeout(() => { btn.textContent = '📋 一键复制'; }, 1500);
+    } catch (err) {
+        console.error('copy error:', err);
+        showToast('❌ 复制失败，请手动选择复制', 'error');
+    }
 }
 
 // ================== 全量数据导出与导入 ==================
