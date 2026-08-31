@@ -1,2801 +1,373 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>YieldCraft 息流 - 个人持仓与现金流分析面板</title>
-<style>
-  /* 引入 Sora (英文) 和 Noto Serif SC (中文衬线宋体) */
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700;900&family=Sora:wght@600;800&display=swap');
-
-  :root {
-    --primary: #2563eb;
-    --primary-hover: #1d4ed8;
-    --bg-main: #f8fafc;
-    --card-bg: #ffffff;
-    --text-primary: #0f172a;
-    --text-secondary: #64748b;
-    --border-color: #e2e8f0;
-    --red: #dc2626;
-    --green: #16a34a;
-    --gold: #d97706;
-  }
-
-  * { box-sizing: border-box; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
-    background: var(--bg-main);
-    margin: 0;
-    padding: 24px;
-    color: var(--text-primary);
-    line-height: 1.5;
-  }
-  .wrap { max-width: 1280px; margin: 0 auto; }
-
-  /* 顶部 Toast 消息提示框 */
-  .toast {
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%) translateY(-100px);
-    background: #1e293b;
-    color: #fff;
-    padding: 10px 20px;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 600;
-    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
-    z-index: 2000;
-    opacity: 0;
-    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-    pointer-events: none;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .toast.show {
-    transform: translateX(-50%) translateY(0);
-    opacity: 1;
-  }
-  .toast.success { background: #059669; }
-  .toast.error { background: #dc2626; }
-  .toast.info { background: #2563eb; }
-
-  /* 顶栏与品牌产品 UI */
-  .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 20px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--border-color);
-  }
-  .brand-group { display: flex; align-items: center; gap: 12px; }
-
-  /* ===== 新版品牌 Logo 样式开始 ===== */
-  .brand-title {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-    font-size: clamp(22px, 3.5vw, 28px);
-    margin: 0;
-    user-select: none;
-    cursor: pointer;
-    /* 蓝色底层弥散光晕 */
-    filter: drop-shadow(0px 8px 20px rgba(37, 99, 235, 0.15))
-            drop-shadow(0px 2px 8px rgba(6, 182, 212, 0.25));
-    transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-    letter-spacing: normal; /* 覆盖旧样式 */
-  }
-
-  /* 悬浮交互：英文与整体一起微微浮起并增强光晕 */
-  .brand-title:hover {
-    transform: translateY(-2px) scale(1.02);
-    filter: drop-shadow(0px 12px 28px rgba(37, 99, 235, 0.28))
-            drop-shadow(0px 4px 14px rgba(6, 182, 212, 0.4));
-  }
-
-  /* 英文部分：Sora 现代科技字体 */
-  .brand-title .brand-en {
-    font-family: 'Sora', sans-serif;
-    display: inline-flex;
-    align-items: baseline;
-    line-height: 1;
-  }
-
-  /* Yield：深藏青 (稳重底座) */
-  .brand-title .word-yield {
-    font-weight: 800;
-    color: #0f172a;
-    letter-spacing: -0.04em;
-  }
-
-  /* Craft：科技蓝 (精准科技) */
-  .brand-title .word-craft {
-    font-weight: 600;
-    color: #2563eb;
-    letter-spacing: -0.02em;
-    margin-left: 1px;
-  }
-
-  /* 电光青呼吸微光节点 */
-  .brand-title .brand-pulse-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background-color: #06b6d4;
-    box-shadow: 0 0 10px #06b6d4;
-    animation: pulseGlow 2.5s infinite ease-in-out;
-  }
-
-  /* 中文部分：典雅衬线体 + 纯蓝流光 */
-  .brand-title .brand-zh {
-    font-family: 'Noto Serif SC', 'Songti SC', 'Source Han Serif SC', serif;
-    font-weight: 900;
-    font-size: 0.95em;
-    letter-spacing: 0.06em;
-    background: linear-gradient(
-      120deg,
-      #1d4ed8 0%,  /* 皇家蓝 */
-      #2563eb 30%, /* 科技蓝 */
-      #38bdf8 60%, /* 天蓝 */
-      #06b6d4 85%, /* 电光青 */
-      #1d4ed8 100%
-    );
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: liquidFlow 4s linear infinite;
-    filter: drop-shadow(0px 2px 8px rgba(37, 99, 235, 0.2));
-    transition: filter 0.3s ease;
-  }
-
-  /* 动画定义 */
-  @keyframes liquidFlow {
-    0%   { background-position: 0% center; }
-    100% { background-position: -200% center; }
-  }
-
-  @keyframes pulseGlow {
-    0%, 100% { opacity: 0.4; transform: scale(0.85); box-shadow: 0 0 4px #06b6d4; }
-    50%      { opacity: 1;   transform: scale(1.3);  box-shadow: 0 0 12px #06b6d4; }
-  }
-  /* ===== 新版品牌 Logo 样式结束 ===== */
-
-  /* 顶栏右上角操作区与快捷按钮 */
-  .header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-
-  .btn-top-action {
-    background: #ffffff;
-    color: #475569;
-    border: 1px solid var(--border-color);
-    font-weight: 600;
-    padding: 5px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .btn-top-action:hover {
-    background: #f1f5f9;
-    color: var(--text-primary);
-    border-color: #cbd5e1;
-  }
-
-  .btn-sponsor {
-    background: #fef3c7;
-    color: #d97706;
-    border: 1px solid #fcd34d;
-    font-weight: 600;
-    padding: 5px 12px;
-    border-radius: 20px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .btn-sponsor:hover { background: #fde68a; color: #b45309; }
-
-  /* 隐私提示徽章 & 浮层 Popover */
-  .privacy-badge {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 12px;
-    color: #475569;
-    background: #f1f5f9;
-    border: 1px solid #cbd5e1;
-    padding: 4px 10px;
-    border-radius: 20px;
-    cursor: pointer;
-    user-select: none;
-    transition: all 0.2s ease;
-  }
-  .privacy-badge:hover { background: #e2e8f0; color: var(--text-primary); }
-  .privacy-badge .popover {
-    visibility: hidden;
-    opacity: 0;
-    width: 260px;
-    background-color: #1e293b;
-    color: #f8fafc;
-    font-size: 12px;
-    text-align: left;
-    border-radius: 8px;
-    padding: 10px 12px;
-    position: absolute;
-    z-index: 100;
-    top: 130%;
-    left: 0;
-    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);
-    transition: opacity 0.2s, visibility 0.2s;
-    line-height: 1.6;
-    font-weight: 400;
-  }
-  .privacy-badge:hover .popover, .privacy-badge:focus .popover {
-    visibility: visible;
-    opacity: 1;
-  }
-
-  .meta-info { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-secondary); }
-  .status-indicator { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 8px; border-radius: 12px; background: #fff; border: 1px solid var(--border-color); }
-  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #cbd5e1; }
-  .status-dot.online { background: var(--green); box-shadow: 0 0 6px rgba(22, 163, 74, 0.4); }
-  .status-dot.offline { background: var(--red); box-shadow: 0 0 6px rgba(220, 38, 38, 0.4); }
-  .status-text.online { color: var(--green); font-weight: 600; }
-  .status-text.offline { color: var(--red); font-weight: 600; }
-
-  /* 概览卡片 */
-  .cards { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
-  .card {
-    background: var(--card-bg);
-    border-radius: 10px;
-    padding: 16px;
-    border: 1px solid var(--border-color);
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-    flex: 1;
-    min-width: 180px;
-  }
-  .card .label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
-  .card .value { font-size: 24px; font-weight: 700; margin-top: 4px; color: var(--text-primary); letter-spacing: -0.5px; }
-  .card .value.hl { color: var(--red); }
-  .card .value.gold { color: var(--gold); }
-  .card .card-subtext { font-size: 12px; margin-top: 4px; color: var(--text-secondary); }
-  .card .card-subtext.pos { color: var(--red); font-weight: 600; }
-  .card .card-subtext.neg { color: var(--green); font-weight: 600; }
-
-  /* 工具栏与按钮 */
-  .toolbar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
-  .btn {
-    padding: 8px 14px;
-    font-size: 13px;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
-    border: 1px solid transparent;
-    transition: all 0.15s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-  .btn-primary { background: var(--primary); color: #fff; }
-  .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
-  .btn-outline { background: #fff; border-color: var(--border-color); color: var(--text-primary); }
-  .btn-outline:hover:not(:disabled) { background: #f1f5f9; }
-  .btn-success { background: #10b981; color: #fff; }
-  .btn-success:hover:not(:disabled) { background: #059669; }
-  .btn-warning { background: #fff; border-color: var(--gold); color: var(--gold); }
-  .btn-warning:hover:not(:disabled) { background: #fffbe6; }
-  .btn-purple { background: #8b5cf6; color: #fff; }
-  .btn-purple:hover:not(:disabled) { background: #7c3aed; }
-
-  /* 下拉菜单 (更多设置) */
-  .dropdown { position: relative; display: inline-block; }
-  .dropdown-menu {
-    display: none;
-    position: absolute;
-    left: 0;
-    top: 100%;
-    margin-top: 4px;
-    background: #fff;
-    min-width: 180px;
-    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    z-index: 100;
-    padding: 4px 0;
-  }
-  .dropdown-menu.show { display: block; }
-  .dropdown-item {
-    display: block;
-    width: 100%;
-    padding: 8px 14px;
-    text-align: left;
-    background: transparent;
-    border: none;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-primary);
-    cursor: pointer;
-    transition: background 0.15s ease;
-  }
-  .dropdown-item:hover { background: #f1f5f9; }
-
-  /* 表格自适应与动态固定列支持 */
-  .table-wrapper {
-    width: 100%;
-    overflow: auto;
-    max-height: 70vh;
-    background: var(--card-bg);
-    border-radius: 10px;
-    border: 1px solid var(--border-color);
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-    margin-bottom: 20px;
-    -webkit-overflow-scrolling: touch;
-  }
-  table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: auto; }
-  /* 全部列统一居中；列宽由表头/单元内容中最长者决定（table-layout:auto 自适应），不硬编码 */
-  th, td { padding: 10px 12px; text-align: center; font-size: 13px; border-bottom: 1px solid var(--border-color); white-space: nowrap; vertical-align: middle; }
-  th { background: #f8fafc; color: var(--text-secondary); font-weight: 600; position: sticky; top: 0; z-index: 20; }
-  /* 仅名称列左对齐（多行文本+徽章需要统一左基线，沿用旧版）；其余列保持居中 */
-  td.l, th.l { text-align: left; }
-  td.hl { color: var(--red); font-weight: 700; }
-  td.paid { color: var(--gold); font-weight: 700; }
-  td.zero { color: #94a3b8; }
-  td.pos { color: var(--red); font-weight: 600; }
-  td.neg { color: var(--green); font-weight: 600; }
-
-  /* 自定义固定列样式 (动态应用至选中的列) */
-  th.col-pinned-sticky, td.col-pinned-sticky {
-    position: sticky;
-    left: 0;
-    z-index: 10;
-    background: #ffffff;
-    box-shadow: 3px 0 6px -2px rgba(15, 23, 42, 0.08);
-  }
-  th.col-pinned-sticky {
-    top: 0;          /* 表头纵向吸顶：随整行表头一起固定 */
-    z-index: 30;     /* 高于普通表头(z-20)，横向滚动时盖住其他列 */
-    background: #f8fafc;
-  }
-
-  /* 表头内容：图钉列（名称列，左对齐）右预留图钉空间，不遮文字 */
-  .th-content.has-pin {
-    display: inline-block;
-    padding-right: 26px;
-  }
-  .pin-btn {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    font-size: 11px;
-    opacity: 0.35;
-    cursor: pointer;
-    padding: 1px 3px;
-    border-radius: 3px;
-    transition: all 0.2s ease;
-    line-height: 1;
-  }
-  .pin-btn:hover {
-    opacity: 0.8;
-    background: #e2e8f0;
-  }
-  .pin-btn.active {
-    opacity: 1;
-    background: #dbeafe;
-    color: var(--primary);
-  }
-
-  /* 列设置弹窗项样式 */
-  .col-setting-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
-    background: #f8fafc;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-  }
-  .col-setting-item .col-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
-  .col-setting-actions { display: flex; align-items: center; gap: 6px; }
-
-  /* 名称列与标签画风（内容左对齐：天数徽章/名称/盈亏副行统一左基线，扫视有锚点） */
-  .name-container {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
-    line-height: 1.2;
-  }
-  .name-text {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-  }
-
-  /* 名称列底部双端布局：左下角 Tag / 右下角持仓天数 */
-  .name-sub-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    margin-top: 3px;
-    gap: 8px;
-  }
-  .name-sub-row > span { margin-top: 0; }
-
-  /* 持仓天数：黑底白字加粗微型方块徽章（位于股票名称上方，与名称左对齐） */
-  .days-dark-badge {
-    font-size: 10px;
-    font-weight: 700;
-    color: #ffffff;
-    background: #595959;
-    padding: 0 5px;
-    border-radius: 3px;
-    line-height: 1.4;
-    font-variant-numeric: tabular-nums;
-    margin-bottom: 2px;
-  }
-
-  /* 胶囊徽章组件 */
-  .badge-watch {
-    display: inline-block;
-    font-size: 11px;
-    line-height: 1;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: 600;
-    color: #2563eb;
-    background: #eff6ff;
-    border: 1px solid #bfdbfe;
-    margin-top: 3px;
-    white-space: nowrap;
-  }
-  .badge-profit-pos {
-    display: inline-block;
-    font-size: 11px;
-    line-height: 1;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: 600;
-    color: #dc2626;
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    margin-top: 3px;
-    white-space: nowrap;
-  }
-  .badge-profit-neg {
-    display: inline-block;
-    font-size: 11px;
-    line-height: 1;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: 600;
-    color: #16a34a;
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
-    margin-top: 3px;
-    white-space: nowrap;
-  }
-  .badge-profit-none {
-    display: inline-block;
-    font-size: 11px;
-    line-height: 1;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: 500;
-    color: #64748b;
-    background: #f1f5f9;
-    border: 1px solid #cbd5e1;
-    margin-top: 3px;
-    white-space: nowrap;
-  }
-
-  /* 观察状态徽章（灰色，用于成本列及股息率列） */
-  .badge-observe {
-    display: inline-block;
-    font-size: 11px;
-    line-height: 1;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: 600;
-    color: #64748b;
-    background: #f1f5f9;
-    border: 1px solid #cbd5e1;
-    white-space: nowrap;
-  }
-
-  /* 下期预测单元格 */
-  .next-pred-container {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
-    line-height: 1.25;
-  }
-  .next-pred-text {
-    font-size: 13px;
-    color: var(--text-primary);
-    white-space: nowrap;
-  }
-  .badge-announced {
-    display: inline-block;
-    font-size: 10px;
-    line-height: 1;
-    padding: 2px 5px;
-    border-radius: 3px;
-    font-weight: 600;
-    color: #dc2626;
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    margin-top: 3px;
-    white-space: nowrap;
-  }
-
-  /* 现金流阶梯卡片 */
-  .ladder-card {
-    background: #fff;
-    border-radius: 10px;
-    padding: 18px 20px;
-    margin: 20px 0;
-    border: 1px solid var(--border-color);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-  }
-  .ladder-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-  .ladder-title { font-size: 16px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 6px; }
-  .ladder-badge { background: var(--primary); color: #fff; font-weight: 700; border-radius: 4px; padding: 2px 8px; font-size: 12px; }
-  .ladder-badge.gold { background: var(--gold); }
-  .ladder-info { font-size: 13px; color: var(--text-primary); line-height: 1.6; }
-  .ladder-metrics {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 12px;
-    margin-top: 12px;
-    background: #f8fafc;
-    padding: 12px;
-    border-radius: 8px;
-    border: 1px solid #f1f5f9;
-  }
-  .metric-item { font-size: 12px; color: var(--text-secondary); }
-  .metric-item strong { font-size: 13px; color: var(--text-primary); display: block; margin-top: 2px; }
-  /* 指标下方的测算公式说明：弱化小字，与加粗的关键数字区分开 */
-  .metric-item .metric-note { font-size: 11px; color: #94a3b8; display: block; margin-top: 2px; line-height: 1.5; }
-  .ladder-bar { height: 10px; background: #e2e8f0; border-radius: 6px; overflow: hidden; margin-top: 14px; }
-  .ladder-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #2563eb); border-radius: 6px; transition: width 0.4s ease; }
-
-  /* Bottom Sheet 底部抽屉修改持仓面板 */
-  .bottom-sheet-overlay {
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(15, 23, 42, 0.5);
-    backdrop-filter: blur(4px);
-    display: none; align-items: flex-end; justify-content: center;
-    z-index: 1500; opacity: 0;
-    transition: opacity 0.25s ease;
-  }
-  .bottom-sheet-overlay.active {
-    display: flex; opacity: 1;
-  }
-  .bottom-sheet {
-    background: #ffffff;
-    width: 100%;
-    max-width: 640px;
-    border-radius: 16px 16px 0 0;
-    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.15);
-    max-height: 85vh;
-    display: flex; flex-direction: column;
-    transform: translateY(100%);
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .bottom-sheet-overlay.active .bottom-sheet {
-    transform: translateY(0);
-  }
-  .sheet-header {
-    padding: 12px 20px 10px;
-    border-bottom: 1px solid var(--border-color);
-  }
-  .sheet-drag-handle {
-    width: 36px; height: 4px;
-    background: #cbd5e1; border-radius: 2px;
-    margin: 0 auto 10px;
-  }
-  .sheet-title-bar {
-    display: flex; justify-content: space-between; align-items: center;
-  }
-  .sheet-title { font-size: 16px; font-weight: 700; margin: 0; color: var(--text-primary); }
-  .sheet-body {
-    padding: 16px; overflow-y: auto; flex: 1;
-    display: flex; flex-direction: column; gap: 12px;
-    -webkit-overflow-scrolling: touch;
-  }
-  .sheet-footer {
-    padding: 12px 16px 20px;
-    border-top: 1px solid var(--border-color);
-    background: #f8fafc; display: flex; gap: 10px;
-  }
-
-  /* 抽屉持仓表单卡片 */
-  .drawer-card {
-    background: #f8fafc;
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    padding: 12px 14px;
-    display: flex; flex-direction: column; gap: 10px;
-    transition: border-color 0.2s, background 0.2s;
-  }
-  .drawer-card:focus-within {
-    border-color: var(--primary);
-    background: #ffffff;
-    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
-  }
-  .drawer-card-header { display: flex; justify-content: space-between; align-items: center; }
-  .drawer-card-title { display: flex; align-items: center; gap: 8px; }
-  .drawer-card-name { font-weight: 700; font-size: 14px; color: var(--text-primary); }
-  .drawer-card-code { font-size: 11px; font-weight: 600; color: var(--text-secondary); background: #e2e8f0; padding: 2px 6px; border-radius: 4px; }
-  .drawer-card-actions { display: flex; align-items: center; gap: 4px; }
-  .drawer-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .drawer-input-group label { display: block; font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
-  .drawer-input-group input {
-    width: 100%; padding: 7px 10px; font-size: 13px; border: 1px solid var(--border-color); border-radius: 6px; background: #ffffff;
-  }
-  .move-btn {
-    background: #f1f5f9; color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; padding: 3px 6px; cursor: pointer; font-size: 11px;
-  }
-  .move-btn:hover:not(:disabled) { background: #e2e8f0; }
-  .move-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .del-btn { background: #fef2f2; color: var(--red); border: 1px solid #fca5a5; border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 12px; font-weight: 600; }
-  .del-btn:hover { background: #fee2e2; }
-
-  /* 弹窗 Modal 通用 */
-  .modal-overlay {
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(15, 23, 42, 0.45);
-    backdrop-filter: blur(3px);
-    display: none; align-items: center; justify-content: center;
-    z-index: 1000; padding: 16px;
-  }
-  .modal-box {
-    background: #fff; border-radius: 12px; width: 100%; max-width: 620px;
-    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden;
-    max-height: 90vh; display: flex; flex-direction: column;
-  }
-  .modal-header { padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
-  .modal-title { font-size: 16px; font-weight: 700; margin: 0; }
-  .modal-close { cursor: pointer; border: none; background: none; font-size: 20px; color: var(--text-secondary); }
-  .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
-  .modal-footer { padding: 12px 20px; border-top: 1px solid var(--border-color); background: #f8fafc; display: flex; justify-content: flex-end; gap: 8px; }
-
-  /* 赞赏弹窗 */
-  .sponsor-body { text-align: center; padding: 12px 16px 16px; }
-  .sponsor-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.6; }
-  .qr-container { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 12px; }
-  .qr-box {
-    background: #f8fafc;
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 16px 14px;
-    width: 240px;
-    text-align: center;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  .qr-box:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.08); }
-
-  .qr-box img {
-    width: 200px;
-    height: 200px;
-    object-fit: contain;
-    border-radius: 8px;
-    background: #fff;
-    padding: 6px;
-    border: 1px solid #e2e8f0;
-    image-rendering: -webkit-optimize-contrast;
-    -webkit-touch-callout: default !important;
-    pointer-events: auto !important;
-  }
-
-  .qr-box.sugar { border-color: #fca5a5; background: #fff5f5; }
-  .qr-box.sugar .coke-tag { background: #ef4444; color: #fff; }
-
-  .qr-box.zero { border-color: #93c5fd; background: #f0f9ff; }
-  .qr-box.zero .coke-tag { background: #0284c7; color: #fff; }
-
-  .coke-tag {
-    display: inline-block;
-    font-size: 12px;
-    font-weight: 700;
-    padding: 3px 10px;
-    border-radius: 12px;
-    margin-bottom: 8px;
-  }
-  .qr-box .coke-title { font-size: 14px; font-weight: 700; color: var(--text-primary); margin-top: 8px; }
-  .qr-box .coke-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
-  .qr-box .coke-tips { font-size: 11px; color: #64748b; margin-top: 8px; font-weight: 600; }
-
-  .sponsor-thanks-note { margin-top: 20px; text-align: center; }
-  .btn-thank-action {
-    background: #10b981;
-    color: #fff;
-    border: none;
-    padding: 8px 20px;
-    border-radius: 20px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.2);
-  }
-  .btn-thank-action:hover { background: #059669; transform: scale(1.03); }
-
-  /* 目标设置 */
-  .mode-selector { display: flex; gap: 10px; margin-bottom: 16px; }
-  .mode-btn {
-    flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px;
-    background: #fff; cursor: pointer; font-size: 13px; text-align: center; font-weight: 600; color: var(--text-secondary);
-  }
-  .mode-btn.active { border-color: var(--primary); background: #eff6ff; color: var(--primary); }
-  .form-group { margin-bottom: 14px; }
-  .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
-  .form-group input, .form-group select {
-    width: 100%; padding: 8px 12px; font-size: 13px; border: 1px solid var(--border-color); border-radius: 6px;
-  }
-  .custom-level-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-  .custom-level-row input[type="text"] { flex: 2; }
-  .custom-level-row input[type="number"] { flex: 1.5; }
-
-  /* 表单与细化列表 */
-  .edit-form {
-    background: #fff; padding: 14px; border-radius: 8px; margin-bottom: 16px;
-    border: 1px solid var(--border-color); display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
-  }
-  .edit-form input { padding: 7px 10px; font-size: 13px; border: 1px solid var(--border-color); border-radius: 6px; }
-
-  h2.section-title { font-size: 15px; font-weight: 700; margin: 24px 0 10px; color: var(--text-primary); }
-  .detail-table { width: auto; min-width: 380px; max-width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 16px; }
-  .detail-table th, .detail-table td { padding: 9px 16px; font-size: 13px; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
-  .detail-table th { background: #f8fafc; color: var(--text-secondary); font-weight: 600; }
-
-  /* 页脚说明与免责声明 */
-  .footer-note-card {
-    background: #fff;
-    border-radius: 10px;
-    padding: 18px 20px;
-    margin-top: 24px;
-    border: 1px solid var(--border-color);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-    font-size: 12px;
-    color: var(--text-secondary);
-    line-height: 1.8;
-  }
-  .footer-section { margin-bottom: 14px; }
-  .footer-section:last-child { margin-bottom: 0; }
-  .footer-section-title {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-bottom: 6px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  /* 移动端适配 */
-  @media screen and (max-width: 768px) {
-    body { padding: 12px; }
-    .header { flex-direction: column; align-items: flex-start; }
-    .header-actions { width: 100%; justify-content: space-between; margin-top: 8px; }
-    .meta-info { width: 100%; justify-content: space-between; margin-top: 4px; }
-    .cards { gap: 10px; margin-bottom: 16px; }
-    .card { min-width: calc(50% - 5px); padding: 12px 14px; }
-    .card:nth-child(3), .card:nth-child(4) { min-width: 100%; }
-    .toolbar button, .toolbar .dropdown { flex: 1; min-width: calc(50% - 4px); }
-    .toolbar .dropdown button { width: 100%; justify-content: center; }
-    .ladder-metrics { grid-template-columns: 1fr; }
-
-    .modal-box { max-height: 85vh; }
-    .modal-body {
-      padding: 12px;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior: contain;
-    }
-
-    .qr-container {
-      display: flex;
-      flex-direction: row;
-      gap: 8px;
-      justify-content: center;
-    }
-    .qr-box {
-      flex: 1;
-      min-width: 0;
-      padding: 10px 6px;
-    }
-    .qr-box img {
-      width: 100% !important;
-      max-width: 135px !important;
-      height: auto !important;
-      aspect-ratio: 1 / 1;
-    }
-    .sponsor-desc { font-size: 11px; margin-bottom: 8px; }
-    .coke-tips { font-size: 10px; }
-  }
-</style>
-</head>
-<body>
-
-<!-- 全局轻量 Toast 提示框 -->
-<div id="toast" class="toast"></div>
-
-<div class="wrap">
-  <!-- 顶栏区域 -->
-  <header class="header">
-    <div class="brand-group">
-      <!-- 新版品牌 Logo -->
-      <h1 class="brand-title" title="YieldCraft 息流">
-        <span class="brand-en">
-          <span class="word-yield">Yield</span><span class="word-craft">Craft</span>
-        </span>
-        <span class="brand-pulse-dot"></span>
-        <span class="brand-zh">息流</span>
-      </h1>
-      <!-- 本地安全存储说明 -->
-      <div class="privacy-badge" tabindex="0">
-        🔒 本地安全存储
-        <div class="popover">
-          <b>数据隐私保障说明：</b><br>
-          您的所有股票持仓、成本价、数量及现金流目标数据 100% 仅保存在您当前设备的浏览器（LocalStorage）中，绝不上传至任何后端服务器。<br>
-          <span style="color:#fbbf24;">⚠️ 数据仅存本机：清除浏览器记录/缓存会<b>永久丢失</b>，请定期「⚙️ 更多设置 → 导出配置与持仓」备份。</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- 右侧快捷按钮 -->
-    <div class="header-actions">
-      <button type="button" class="btn-sponsor" onclick="openSponsorModal()">🥤 请作者喝可乐</button>
-      <button type="button" class="btn-top-action" onclick="openWelcomeModal()">📜 免责声明</button>
-      <div class="meta-info">
-        <span id="dataTimeText">更新中...</span>
-        <span class="status-indicator">
-          <span class="status-dot" id="statusDot"></span>
-          <span class="status-text" id="statusText">连接中</span>
-        </span>
-      </div>
-    </div>
-  </header>
-
-  <!-- 概览卡片区 -->
-  <div class="cards" id="cardsContainer"></div>
-
-  <!-- 操作按钮栏 -->
-  <div class="toolbar">
-    <button type="button" class="btn btn-primary" onclick="toggleAdd()">+ 添加持仓</button>
-    <button type="button" class="btn btn-outline" onclick="openEditDrawer()">✏️ 修改持仓</button>
-    <button type="button" class="btn btn-purple" onclick="openGoalModal()">🎯 设置目标</button>
-    <button type="button" class="btn btn-success" id="refreshBtn" onclick="refreshData(true)">获取最新行情</button>
-
-    <!-- 更多设置下拉菜单 -->
-    <div class="dropdown">
-      <button type="button" class="btn btn-outline" onclick="toggleMoreMenu(event)">⚙️ 更多设置 ▾</button>
-      <div class="dropdown-menu" id="moreMenu">
-        <button type="button" class="dropdown-item" onclick="openColumnModal(); closeMoreMenu();">📐 自定义列与排序</button>
-        <button type="button" class="dropdown-item" id="toggleDetailBtn" onclick="toggleDetail(); closeMoreMenu();">显示分红明细</button>
-        <button type="button" class="dropdown-item" onclick="document.getElementById('importFile').click(); closeMoreMenu();">导入配置数据</button>
-        <button type="button" class="dropdown-item" onclick="exportData(); closeMoreMenu();">导出配置与持仓</button>
-      </div>
-    </div>
-
-    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
-  </div>
-
-  <div id="addStockPanel" style="display:none;">
-    <form id="addForm" class="edit-form" autocomplete="off">
-      <input type="text" name="code" placeholder="股票/ETF代码 (如 601668)" pattern="[0-9]{6}" required autocomplete="off">
-      <input type="number" step="any" name="shares" placeholder="持股数量 (留空或0即为观察)" autocomplete="off">
-      <input type="number" step="any" name="cost" placeholder="成本价 (选填)" autocomplete="off">
-      <input type="date" name="purchaseDate" title="买入日期 (选填，填写后按交易日统计持仓天数)" autocomplete="off">
-      <button type="submit" class="btn btn-primary">确认添加</button>
-    </form>
-  </div>
-
-  <!-- 持仓表格 -->
-  <div class="table-wrapper">
-    <table>
-      <thead>
-        <!-- 表头由 JS 根据配置与固定状态动态渲染 -->
-      </thead>
-      <tbody id="holdingsBody"></tbody>
-    </table>
-  </div>
-
-  <div id="ladderContainer"></div>
-
-  <div id="detailContainer"></div>
-
-  <!-- 页脚说明与免责声明 -->
-  <div class="footer-note-card">
-    <div class="footer-section">
-      <div class="footer-section-title">📊 计算与数据说明</div>
-      · <b>观察标的</b> = 持股数量为 0 的标的，仅用于监测现价与股息率，不参与组合市值、成本及动态股息率的汇总计算。<br>
-      · <b>总市值</b> = 当前价 × 持股数；<b>总浮动盈亏</b> = 总市值 - 券商账面总成本（负成本计入）。<br>
-      · <b>整体成本股息率</b> = 预计全年总分红 ÷ 投入本金总额；反映基于历史买入本金的实际现金收益率。<br>
-      · <b>组合动态股息率</b> = 预计全年总分红 ÷ 当前持仓总市值；反映按照今日市价重置或评估当前持仓组合时的即期现金收益率。<br>
-      · <b>全年总分红（约）</b> = 近 12 个月每股/每份派息合计 × 持股数（按当前派息节奏估算）；<b>月均分红</b> = 全年总分红 ÷ 12。<br>
-      · <b>下期预测</b> = 按各标的近期派息节奏推算的下一笔除息日与预计每股派息；已公告的显示具体日期并标注「已公告」，未公告的仅显示预估年月。<br>
-      · <b>持有天数</b> = 自买入日期（不含买入当日）起至最近交易日之间的<b>A股交易日数量</b>（基于上证指数真实交易日历）；仅对已填写买入日期的非观察持仓显示，未填写买入日期或“观察”标的均不显示。<br>
-      · <b>固定列小贴士</b> = 仅“名称”列支持固定至表格最左侧，点击表头右侧的 📌 按钮即可切换固定状态。
-    </div>
-
-    <div class="footer-section" style="padding-top: 12px; border-top: 1px dashed var(--border-color);">
-      <div class="footer-section-title">⚖️ 法律免责声明与合规说明</div>
-      · <b>个人记账辅助工具：</b>本系统仅为个人投资者提供资产持仓记录、历史分红数据整理及被动现金流推算的辅助工具，<b>不推荐任何股票、ETF、基金或金融产品</b>。<br>
-      · <b>不构成投资建议：</b>本面板展示的所有股息率、分红预测、推算模型及场景分析均不构成任何投资建议、财务咨询或收益承诺，投资者据此作出的任何买卖决策风险自担。<br>
-      · <b>数据来源与时限：</b>行情数据及历史分红记录均来源于公开市场接口，可能因网络延迟或第三方接口变动存在误差，请以交易所与公司法定公告为准。<br>
-      · <b>100% 本地隐私安全保障：</b>本工具为纯前端应用，<b>无任何后端用户数据库</b>。您的所有持仓代码、持股数量、买入成本及现金流目标数据 <b>完全仅保存在您本地浏览器的 LocalStorage 中</b>，绝不会收集或上传您的任何资产隐私数据。
-    </div>
-  </div>
-</div>
-
-<!-- 自定义列与排序弹窗 Modal -->
-<div class="modal-overlay" id="columnModal">
-  <div class="modal-box" style="max-width: 480px;">
-    <div class="modal-header">
-      <h3 class="modal-title">📐 自定义列顺序与固定</h3>
-      <button class="modal-close" onclick="closeColumnModal()">&times;</button>
-    </div>
-    <div class="modal-body">
-      <p style="font-size:12px; color:var(--text-secondary); margin-top:0; margin-bottom:12px;">
-        代码和名称列固定在最前且不可移动，其他列可通过 ⬆️ ⬇️ 调整前后顺序
-      </p>
-      <div id="columnSettingList" style="display:flex; flex-direction:column; gap:8px;"></div>
-    </div>
-    <div class="modal-footer" style="justify-content: space-between;">
-      <button type="button" class="btn btn-outline" onclick="resetColumnOrder()">恢复默认</button>
-      <div>
-        <button type="button" class="btn btn-outline" onclick="closeColumnModal()">取消</button>
-        <button type="button" class="btn btn-primary" onclick="saveColumnConfigFromModal()">保存生效</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Bottom Sheet 底部抽屉修改持仓面板 -->
-<div class="bottom-sheet-overlay" id="editDrawerOverlay" onclick="if(event.target===this) closeEditDrawer()">
-  <div class="bottom-sheet" id="editDrawer">
-    <div class="sheet-header">
-      <div class="sheet-drag-handle"></div>
-      <div class="sheet-title-bar">
-        <h3 class="sheet-title">✏️ 管理与修改持仓</h3>
-        <button class="modal-close" onclick="closeEditDrawer()">&times;</button>
-      </div>
-    </div>
-    <div class="sheet-body" id="drawerHoldingsList"></div>
-    <div class="sheet-footer">
-      <button type="button" class="btn btn-outline" style="flex:1; justify-content:center;" onclick="closeEditDrawer()">取消</button>
-      <button type="button" class="btn btn-primary" style="flex:2; justify-content:center;" onclick="saveDrawerHoldings()">保存持仓修改</button>
-    </div>
-  </div>
-</div>
-
-<!-- 免责声明弹窗 -->
-<div class="modal-overlay" id="welcomeModal">
-  <div class="modal-box" style="max-width: 560px;">
-    <div class="modal-header">
-      <h3 class="modal-title">📜 免责声明与隐私保障</h3>
-      <button class="modal-close" onclick="closeWelcomeModal()">&times;</button>
-    </div>
-    <div class="modal-body" style="line-height: 1.6; font-size: 13px; color: var(--text-primary);">
-      <p style="margin-top:0; font-size: 14px; font-weight: 600; color: var(--primary);">
-        YieldCraft 息流 是一款专为个人投资者打造的持仓资产与被动现金流分析工具。
-      </p>
-
-      <div style="background: #f8fafc; border: 1px solid var(--border-color); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
-        <b style="color: var(--text-primary); font-size: 13px;">💡 本工具能为您做什么：</b>
-        <ul style="margin: 6px 0 0 18px; padding: 0; color: var(--text-secondary); line-height: 1.7;">
-          <li><b>持仓监测：</b>自动获取股票/ETF最新行情，计算组合总市值与浮动盈亏。</li>
-          <li><b>现金流分析：</b>基于历史派息记录测算持仓整体成本股息率与动态股息率。</li>
-          <li><b>目标管理：</b>提供场景化现金流阶梯（如外卖自由、房租 cover）与复利升级推算。</li>
-        </ul>
-      </div>
-
-      <div style="background: #eff6ff; border: 1px solid #bfdbfe; padding: 12px; border-radius: 8px; margin-bottom: 12px;">
-        <b style="color: #1d4ed8; font-size: 13px;">🔒 安全与隐私承诺：</b>
-        <p style="margin: 4px 0 0 0; color: #1e40af; font-size: 12px; line-height: 1.6;">
-          您的所有股票持仓、成本价、持股数量及现金流目标数据 <b>100% 仅保存在您当前设备的浏览器（LocalStorage）中</b>。本系统没有任何后端用户数据库，绝对不会上传或收集您的任何个人资产隐私。
-          <b style="color: #b91c1c;">⚠️ 注意：清除浏览器记录/缓存会导致数据永久丢失，请定期使用「更多设置 → 导出配置与持仓」备份。</b>
-        </p>
-      </div>
-
-      <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 12px; border-radius: 8px;">
-        <b style="color: #dc2626; font-size: 13px;">⚠️ 法律免责与合规声明：</b>
-        <ul style="margin: 4px 0 0 18px; padding: 0; color: #991b1b; font-size: 12px; line-height: 1.6;">
-          <li><b>非投资建议：</b>本工具仅作为数据记录与计算辅助工具，<b>不推荐、不分析任何具体股票或金融产品</b>，不构成任何投资建议或买卖依据。</li>
-          <li><b>数据参考性：</b>行情及历史分红数据来源于公开接口，预测模型仅供个人财务规划参考，市场有风险，投资需谨慎。</li>
-        </ul>
-      </div>
-    </div>
-    <div class="modal-footer" style="justify-content: center;">
-      <button type="button" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 10px; font-size: 14px;" onclick="acceptWelcome()">我已充分阅读并知晓</button>
-    </div>
-  </div>
-</div>
-
-<!-- 本地数据备份提醒弹窗（低频：每 30 天最多提醒一次） -->
-<div class="modal-overlay" id="backupRemindModal">
-  <div class="modal-box" style="max-width: 460px;">
-    <div class="modal-header">
-      <h3 class="modal-title">💾 数据仅保存在本机浏览器</h3>
-      <button class="modal-close" onclick="closeBackupRemind()">&times;</button>
-    </div>
-    <div class="modal-body" style="line-height: 1.7; font-size: 13px; color: var(--text-primary);">
-      <p style="margin-top:0;">您的全部持仓、成本、目标与界面设置 <b>100% 保存在当前浏览器的本地存储中</b>，不会上传到任何服务器，这是本工具的隐私优势。</p>
-      <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 10px 12px; border-radius: 8px; margin: 10px 0;">
-        <b style="color: #dc2626; font-size: 12px;">⚠️ 清除浏览器记录/缓存 = 数据永久丢失</b>
-        <p style="margin: 4px 0 0 0; color: #991b1b; font-size: 12px; line-height: 1.6;">清除浏览器历史记录、缓存，或卸载/重装浏览器、更换设备、使用无痕模式，都会导致这些数据<b>无法恢复</b>。</p>
-      </div>
-      <p style="margin: 0; color: var(--text-secondary); font-size: 12px;">💡 <b>建议：</b>定期点击右上角「⚙️ 更多设置 → 导出配置与持仓」下载备份文件；更换设备时用「导入配置数据」一键恢复。</p>
-    </div>
-    <div class="modal-footer" style="justify-content: center;">
-      <button type="button" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 10px; font-size: 14px;" onclick="closeBackupRemind()">我知道了（30 天后再次提醒）</button>
-    </div>
-  </div>
-</div>
-
-<!-- 目标设置弹窗 -->
-<div class="modal-overlay" id="goalModal">
-  <div class="modal-box">
-    <div class="modal-header">
-      <h3 class="modal-title">🎯 设置现金流目标与阶梯</h3>
-      <button class="modal-close" onclick="closeGoalModal()">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div class="mode-selector">
-        <div class="mode-btn active" id="modeBtnCustom" onclick="switchGoalMode('custom')">🥤 生活场景模式</div>
-        <div class="mode-btn" id="modeBtnStep" onclick="switchGoalMode('step')">📈 快速递增模式</div>
-      </div>
-
-      <div id="modeCustomPanel">
-        <p style="font-size:12px; color:var(--text-secondary); margin-bottom:12px;">自定义每个阶段代表的生活场景（如：话费自由、外卖自由、房租 cover）。</p>
-        <div id="customLevelsList"></div>
-        <button type="button" class="btn btn-outline" style="width:100%; justify-content:center; margin-top:8px;" onclick="addCustomLevelRow()">+ 添加新等级节点</button>
-      </div>
-
-      <div id="modeStepPanel" style="display:none;">
-        <div class="form-group">
-          <label>终极月度现金流目标 (元/月)</label>
-          <input type="number" id="stepTargetMonthly" value="5000" step="100" autocomplete="off">
-        </div>
-        <div class="form-group">
-          <label>每级递增金额 (元/级)</label>
-          <input type="number" id="stepAmount" value="500" step="50" autocomplete="off">
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button type="button" class="btn btn-outline" onclick="closeGoalModal()">取消</button>
-      <button type="button" class="btn btn-primary" onclick="saveGoalFromModal()">保存并生效</button>
-    </div>
-  </div>
-</div>
-
-<!-- 赞赏弹窗 -->
-<div class="modal-overlay" id="sponsorModal" onclick="if(event.target===this) closeSponsorModal()">
-  <div class="modal-box">
-    <div class="modal-header">
-      <h3 class="modal-title">🥤 请作者喝杯可乐</h3>
-      <button class="modal-close" onclick="closeSponsorModal()">&times;</button>
-    </div>
-    <div class="sponsor-body">
-      <p class="sponsor-desc">
-        感谢使用 <b>YieldCraft 息流</b>！<br>
-        本工具完全免费且无广告，数据 100% 仅保存在您的本地浏览器中。<br>
-        如果它帮您厘清了持仓现金流，欢迎请作者喝杯可乐补给能量！
-      </p>
-      <div class="qr-container">
-        <div class="qr-box sugar">
-          <span class="coke-tag">🔴 经典全糖</span>
-          <img src="wechat.jpg" alt="微信赞赏码" onerror="this.src='https://via.placeholder.com/200?text=WeChat+QR'">
-          <div class="coke-title">🥤 微信赞赏</div>
-          <div class="coke-sub">来瓶有糖可乐，全糖高能</div>
-          <div class="coke-tips">💡 截屏识别 / 长按保存</div>
-        </div>
-
-        <div class="qr-box zero">
-          <span class="coke-tag">🖤 Zero 无糖</span>
-          <img src="alipay.jpg" alt="支付宝赞赏码" onerror="this.src='https://via.placeholder.com/200?text=Alipay+QR'">
-          <div class="coke-title">🥤 支付宝赞赏</div>
-          <div class="coke-sub">无糖零负担，日常续命</div>
-          <div class="coke-tips">💡 截屏识别 / 长按保存</div>
-        </div>
-      </div>
-
-      <div class="sponsor-thanks-note">
-        <button type="button" class="btn-thank-action" onclick="showThankYouAlert()">我已扫码请喝可乐 🥤</button>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button type="button" class="btn btn-outline" onclick="closeSponsorModal()">心意领了，下次一定</button>
-    </div>
-  </div>
-</div>
-
-<script>
-// ================== 配置与存储常量 ==================
-const API_BASE = 'https://api.yieldcraft.top';
-const STORAGE_HOLDINGS_KEY = 'holdings_data_v1';
-const STORAGE_GOAL_KEY = 'yieldcraft_goal_v1';
-const STORAGE_WELCOME_KEY = 'yieldcraft_welcome_v1';
-const STORAGE_PINNED_COL_KEY = 'yieldcraft_pinned_col_v1';
-const STORAGE_COLUMN_ORDER_KEY = 'yieldcraft_column_order_v1';
-
-let detailVisible = false;
-let currentRows = [];
-let editingHoldings = [];
-let toastTimer = null;
-
-// 表格字段字典全集
-const TABLE_COLUMNS = [
-  { key: 'code', label: '代码', align: 'left' },
-  { key: 'name', label: '名称', align: 'left' },
-  { key: 'yieldCost', label: '成本股息率', align: 'right' },
-  { key: 'yieldPrice', label: '现价股息率', align: 'right' },
-  { key: 'next', label: '下期预测', align: 'left' },
-  { key: 'income', label: '年度分红', align: 'right' },
-  { key: 'freq', label: '分红频率', align: 'right' },
-  { key: 'cost', label: '成本', align: 'right' },
-  { key: 'shares', label: '数量', align: 'right' },
-  { key: 'price', label: '现价', align: 'right' },
-  { key: 'pct', label: '今日涨跌', align: 'right' }
-];
-
-// 加载/保存列顺序配置
-let columnOrder = loadColumnOrder();
-let tempModalColumnOrder = [];
-
-// 状态：当前固定的列名（仅允许“名称”列，默认固定）
-let pinnedColKey = localStorage.getItem(STORAGE_PINNED_COL_KEY);
-if (pinnedColKey !== 'name') {
-  pinnedColKey = 'name';
-  localStorage.setItem(STORAGE_PINNED_COL_KEY, 'name');
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+VPS 纯数据 API 服务
+====================
+提供实时行情与股票/ETF分红数据，不保存任何持仓信息，无需登录。
+
+接口：
+  GET /api/quotes?codes=601668,513530,...   -> JSON 行情
+  GET /api/dividends?code=601668            -> JSON 分红记录
+  GET /api/health                           -> 健康检查
+
+所有响应均包含 CORS 头，允许任意来源访问。
+"""
+
+import json
+import re
+import socket
+import sys
+import time
+import threading
+from datetime import datetime, timedelta
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse, parse_qs
+
+try:
+    import requests
+except ImportError:
+    sys.exit("缺少依赖 requests, 请先执行: pip install requests")
+try:
+    from bs4 import BeautifulSoup
+except ImportError:
+    sys.exit("缺少依赖 beautifulsoup4, 请先执行: pip install beautifulsoup4")
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+# ==========================================================================
+# 配置
+# ==========================================================================
+PORT = 8765                     # 监听端口
+DIVIDEND_CACHE_TTL = 24 * 3600  # 分红缓存时间（秒），默认24小时
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    "Referer": "https://quote.eastmoney.com/",
+    "Accept-Language": "zh-CN,zh;q=0.9",
 }
+QUOTE_URL = "https://push2.eastmoney.com/api/qt/ulist.np/get"
+STOCK_DIV_URL = "https://emweb.securities.eastmoney.com/PC_HSF10/BonusFinancing/PageAjax"
+FUND_DIV_URL = "https://fundf10.eastmoney.com/fhsp_{code}.html"
 
-const DEFAULT_GOAL_CONFIG = {
-  mode: 'custom',
-  targetMonthly: 3000,
-  stepAmount: 500,
-  customLevels: [
-    { level: 1, name: '话费/网费自由', amount: 100 },
-    { level: 2, name: '餐饮外卖自由', amount: 600 },
-    { level: 3, name: '水电物业 cover', amount: 1200 },
-    { level: 4, name: '房租/房贷自由', amount: 3000 }
-  ]
-};
+# ==========================================================================
+# 分红数据缓存（内存 + 线程锁）
+# ==========================================================================
+_dividend_cache = {}              # code -> (timestamp, records)
+_dividend_cache_lock = threading.Lock()
 
-function loadColumnOrder() {
-  const stored = localStorage.getItem(STORAGE_COLUMN_ORDER_KEY);
-  if (stored) {
-    try {
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length) {
-        // 强制确保 code 和 name 始终位于前两位
-        const fixedKeys = ['code', 'name'];
-        const validKeys = parsed.filter(k => TABLE_COLUMNS.some(c => c.key === k));
-        const rest = validKeys.filter(k => !fixedKeys.includes(k));
-        return [...fixedKeys, ...rest];
-      }
-    } catch(e){}
-  }
-  return TABLE_COLUMNS.map(c => c.key);
-}
 
-function saveColumnOrder(order) {
-  // 同样确保保存时 code/name 在前
-  const fixedKeys = ['code', 'name'];
-  const rest = order.filter(k => !fixedKeys.includes(k));
-  const safeOrder = [...fixedKeys, ...rest];
-  localStorage.setItem(STORAGE_COLUMN_ORDER_KEY, JSON.stringify(safeOrder));
-}
+def fetch_dividends_with_cache(code):
+    """获取分红数据，带24小时缓存，线程安全。"""
+    now = time.time()
+    with _dividend_cache_lock:
+        cached = _dividend_cache.get(code)
+        if cached and (now - cached[0]) < DIVIDEND_CACHE_TTL:
+            return cached[1]
 
-// 获取当前调配后的有效列配置列表
-function getActiveColumns() {
-  const map = new Map(TABLE_COLUMNS.map(col => [col.key, col]));
-  return columnOrder.map(key => map.get(key)).filter(Boolean);
-}
+    # 锁外执行网络请求，避免阻塞其他线程
+    records = fetch_dividends(code)
 
-// ================== 工具函数 ==================
-function showToast(message, type = 'success', duration = 2500) {
-    const toast = document.getElementById('toast');
-    if (!toast) return;
-    if (toastTimer) clearTimeout(toastTimer);
-    toast.textContent = message;
-    toast.className = `toast show ${type}`;
-    toastTimer = setTimeout(() => {
-        toast.className = 'toast';
-    }, duration);
-}
+    with _dividend_cache_lock:
+        _dividend_cache[code] = (now, records)
+    return records
 
-// 缓存数据时间展示（MM-DD HH:MM，北京时间），用于"非开盘时段读取缓存"提示
-function formatCacheTime(ts) {
-    const d = new Date(ts);
-    const bj = getBeijingTime(d);
-    const bjDate = getBeijingDateString(d);
-    return `${bjDate.slice(5)} ${String(bj.hour).padStart(2,'0')}:${String(bj.minute).padStart(2,'0')}`;
-}
 
-function getToday() {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
+# --------------------------------------------------------------------------
+# 工具函数
+# --------------------------------------------------------------------------
+def get_lan_ip():
+    """获取本机局域网 IP，失败则返回 127.0.0.1"""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
 
-function parseDate(str) {
-    const parts = str.split('-');
-    if (parts.length === 3) return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-    return null;
-}
 
-function dateDiffInDays(d1, d2) {
-    return Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
-}
+def get_with_retry(url, params=None, timeout=10, tries=3):
+    """带重试的 GET 请求，返回 Response 或抛出异常。"""
+    last = None
+    for i in range(tries):
+        try:
+            resp = requests.get(url, params=params, headers=HEADERS, timeout=timeout)
+            resp.raise_for_status()
+            return resp
+        except Exception as e:
+            last = e
+            time.sleep(0.8 * (i + 1))
+    raise last
 
-function escapeHtml(str) {
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-}
 
-function classifyCode(code) {
-    if (!/^\d{6}$/.test(code)) return ['unknown', null];
-    if (code[0] === '6' || code[0] === '5') return [code[0] === '6' ? 'stock' : 'fund', 'SH'];
-    if (code[0] === '0' || code[0] === '3' || code[0] === '1') return [code[0] === '0' || code[0] === '3' ? 'stock' : 'fund', 'SZ'];
-    return ['unknown', null];
-}
+def classify_code(code):
+    """返回 (类型, 市场)。类型 stock/fund/unknown; 市场 SH/SZ。"""
+    if not re.fullmatch(r"\d{6}", code):
+        return "unknown", None
+    if code[0] in ("6", "5"):
+        return ("stock" if code[0] == "6" else "fund"), "SH"
+    if code[0] in ("0", "3", "1"):
+        return ("stock" if code[0] in ("0", "3") else "fund"), "SZ"
+    return "unknown", None
 
-function toggleMoreMenu(e) {
-    e.stopPropagation();
-    const menu = document.getElementById('moreMenu');
-    menu.classList.toggle('show');
-}
 
-function closeMoreMenu() {
-    const menu = document.getElementById('moreMenu');
-    if (menu) menu.classList.remove('show');
-}
+def _d(s):
+    try:
+        return datetime.strptime(str(s).strip()[:10], "%Y-%m-%d").date()
+    except (ValueError, AttributeError):
+        return None
 
-window.addEventListener('click', () => {
-    closeMoreMenu();
-});
 
-// ================== 持仓与目标配置存储 ==================
-// 归一化买入日期：兼容 YYYY-MM-DD / YYYY/MM/DD / YYYY.MM.DD / YYYY年MM月DD日，统一为 YYYY-MM-DD
-function normalizePurchaseDate(v) {
-    if (!v) return '';
-    const s = String(v).trim();
-    const m = s.match(/^(\d{4})[-/.\u5e74](\d{1,2})[-/.\u6708](\d{1,2})\u65e5?$/);
-    if (!m) return '';
-    const y = m[1], mo = String(Number(m[2])).padStart(2, '0'), d = String(Number(m[3])).padStart(2, '0');
-    const dt = new Date(Number(y), Number(mo) - 1, Number(d));
-    if (isNaN(dt.getTime()) || dt.getFullYear() !== Number(y)) return '';
-    return `${y}-${mo}-${d}`;
-}
+# --------------------------------------------------------------------------
+# 实时行情
+# --------------------------------------------------------------------------
+def fetch_quotes_tencent(codes):
+    """腾讯行情接口"""
+    result = {}
+    syms = []
+    for c in codes:
+        _, mkt = classify_code(c)
+        syms.append(("sh" if mkt == "SH" else "sz") + c)
 
-function loadHoldings() {
-    const stored = localStorage.getItem(STORAGE_HOLDINGS_KEY);
-    if (stored) {
-        try {
-            const data = JSON.parse(stored);
-            if (Array.isArray(data)) {
-                return data.map(item => ({
-                    code: String(item.code || ''),
-                    shares: item.shares !== undefined && item.shares !== null ? Number(item.shares) : 0,
-                    cost: item.cost !== undefined && item.cost !== null && item.cost !== '' ? Number(item.cost) : null,
-                    purchaseDate: normalizePurchaseDate(item.purchaseDate)
-                }));
-            }
-        } catch (e) {}
-    }
-    return [];
-}
-
-function saveHoldings(holdings) {
-    localStorage.setItem(STORAGE_HOLDINGS_KEY, JSON.stringify(holdings));
-}
-
-function loadGoalConfig() {
-    const stored = localStorage.getItem(STORAGE_GOAL_KEY);
-    if (stored) {
-        try {
-            return JSON.parse(stored);
-        } catch (e) {}
-    }
-    return JSON.parse(JSON.stringify(DEFAULT_GOAL_CONFIG));
-}
-
-function saveGoalConfig(config) {
-    localStorage.setItem(STORAGE_GOAL_KEY, JSON.stringify(config));
-}
-
-// ================== 首次访问与弹窗控制 ==================
-function checkWelcome() {
-    const hasSeen = localStorage.getItem(STORAGE_WELCOME_KEY);
-    if (!hasSeen) {
-        document.getElementById('welcomeModal').style.display = 'flex';
-    }
-}
-
-function acceptWelcome() {
-    localStorage.setItem(STORAGE_WELCOME_KEY, 'true');
-    document.getElementById('welcomeModal').style.display = 'none';
-}
-
-// 备份提醒（低频弹窗）：数据存本机浏览器，清除浏览器记录会丢失——每 30 天提醒一次
-function checkBackupRemind() {
-    // 首次访问（免责声明未确认）不打扰，避免两个弹窗叠加
-    if (!localStorage.getItem(STORAGE_WELCOME_KEY)) return;
-    const last = localStorage.getItem(STORAGE_BACKUP_REMIND_KEY);
-    if (last) {
-        const diff = (new Date(getBeijingDateString()) - new Date(last)) / 86400000;
-        if (diff < 30) return; // 30 天内已提醒过
-    }
-    document.getElementById('backupRemindModal').style.display = 'flex';
-}
-
-function closeBackupRemind() {
-    document.getElementById('backupRemindModal').style.display = 'none';
-    try { localStorage.setItem(STORAGE_BACKUP_REMIND_KEY, getBeijingDateString()); } catch (e) {}
-}
-
-function openWelcomeModal() {
-    document.getElementById('welcomeModal').style.display = 'flex';
-}
-
-function closeWelcomeModal() {
-    document.getElementById('welcomeModal').style.display = 'none';
-}
-
-// ================== API 调用与状态 ==================
-// ---- 前端防刷缓存键（减少 API 调用）----
-const STORAGE_QUOTES_CACHE_KEY = 'yieldcraft_quotes_cache_v1';
-// v2：空数组（判定"无分红"）只信任 1h，防止东财接口偶发抖动把"无分红"钉死 24h；
-// 升级键名同时强制清掉旧版遗留的脏缓存（如 513530 曾缓存空记录）
-const STORAGE_DIVIDENDS_CACHE_KEY = 'yieldcraft_dividends_cache_v2';
-const DIVIDENDS_CACHE_TTL = 24 * 3600 * 1000; // 有分红记录：缓存 24h（东财数据极少变动）
-const DIVIDENDS_EMPTY_CACHE_TTL = 1 * 3600 * 1000; // 空结果（无分红）：只缓存 1h，尽快自愈
-// 本地数据备份提醒（低频弹窗，每 30 天最多一次）
-const STORAGE_BACKUP_REMIND_KEY = 'yieldcraft_backup_remind_v1';
-
-// 北京时间（Asia/Shanghai）——浏览器时区跟随系统，所有日期/时段判断强制用北京时间
-function getBeijingTime(date = new Date()) {
-    const parts = new Intl.DateTimeFormat('zh-CN', {
-        timeZone: 'Asia/Shanghai',
-        hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
-    }).formatToParts(date);
-    const map = {};
-    for (const p of parts) map[p.type] = p.value;
-    return { hour: parseInt(map.hour, 10), minute: parseInt(map.minute, 10) };
-}
-
-function getBeijingDateString(date = new Date()) {
-    const parts = new Intl.DateTimeFormat('zh-CN', {
-        timeZone: 'Asia/Shanghai',
-        year: 'numeric', month: '2-digit', day: '2-digit'
-    }).formatToParts(date);
-    const map = {};
-    for (const p of parts) map[p.type] = p.value;
-    return `${map.year}-${map.month}-${map.day}`;
-}
-
-// 公告窗口：15:00 ~ 21:00（北京时间）。A股信息披露收盘后开始，权益分派实施公告
-// 高峰在 16:00~20:00。此窗口内分红强制实时拉取，保证"已公告"当天可见。
-function inAnnouncementWindow() {
-    const { hour } = getBeijingTime();
-    return hour >= 15 && hour < 21;
-}
-
-// A股盘中会话：09:15 ~ 15:00（北京时间）。
-// 其余时段（15:00~次日09:15）行情=最新收盘价，直接复用缓存，零 /api/quotes 请求。
-// 判定要点（2026-08-28 修复"盘中永远提示非开盘时段"）：
-//   腾讯日K接口盘中【不含当天K线】（收盘后才出现），所以"日历最后一天=昨天"是正常滞后，
-//   绝不能因"今天不在日历里"就判定休市；否则交易日的每个上午都读旧缓存、行情永不更新。
-// 规则：① 时钟 09:15~15:00；② 周末精确排除（A股周六周日必休市）；③ 日历滞后
-//   ≤10 个自然日（覆盖日常滞后1天、跨周末3天、春节/国庆后首日）→ 按交易日实时拉取。
-//   代价：法定节假日的工作日会多打几次行情接口（CDN 15s 缓存兜底，返回不变收盘价，无害）。
-// days 为空（日历未就绪）时退回纯时钟 + 工作日判断。
-// 注：此处的宽松判断仅用于"是否拉实时行情"，与【持有天数】统计口径无关
-//（天数统计仍坚持精确日历，不做任何近似，见已知坑#2）。
-function isMarketSession(days) {
-    const { hour, minute } = getBeijingTime();
-    if (hour < 9 || hour >= 15) return false;
-    if (hour === 9 && minute < 15) return false;
-
-    // 周末精确判定（A股周六、周日必休市）
-    const dow = new Date(getBeijingDateString() + 'T00:00:00+08:00').getDay();
-    if (dow === 0 || dow === 6) return false;
-
-    if (Array.isArray(days) && days.length) {
-        const today = getBeijingDateString();
-        if (days.includes(today)) return true; // 今天明确在日历里 = 交易日
-
-        // 今天不在日历里：日K盘中滞后 → 间隔 ≤10 天仍视为交易日（实时拉取）
-        const gap = dateDiffInDays(parseDate(days[days.length - 1]), parseDate(today));
-        return gap <= 10;
-    }
-
-    // 日历未就绪：退回纯时钟 + 工作日判断
-    return true;
-}
-
-// 判定缓存快照是否为「过期的盘中价」——修复「盘后数据停留在盘中旧缓存」的核心守卫：
-// ① 缓存写入日=今天：交易日历盘中【不含当天】（腾讯日K滞后），无法用日历确认今天是否为
-//    交易日，直接按「早于 15:00 收盘」判定（15:00 整起腾讯返回的即为收盘价，15:00 前写入
-//    的必是盘中价）；
-// ② 缓存写入日=历史日期：用交易日历确认该日是否为交易日，交易日且早于 15:00 写入=盘中价；
-//    周末/节假日写入的缓存（数据本就是最近收盘价）不算过期。
-// days 为交易日历数组（可空），来自 yieldcraft_trade_calendar_v2（marketDays）。
-function isStaleIntradaySnapshot(ts, days) {
-    const d = new Date(ts);
-    if (isNaN(d.getTime())) return false;
-    const { hour } = getBeijingTime(d);
-    const cacheDay = getBeijingDateString(d);
-    // ① 写入日=今天：盘中日历滞后不可知 → 按 15:00 判定
-    if (cacheDay === getBeijingDateString()) return hour < 15;
-    // ② 写入日=历史交易日：日历可精确确认（覆盖周五盘中价在周末/次日早上被误当收盘价）
-    if (Array.isArray(days) && days.length && days.includes(cacheDay)) return hour < 15;
-    return false;
-}
-
-// ================== 动态刷新按钮/Toast 文案联动 ==================
-// 复用 isMarketSession(marketDays)：盘中 → 「获取实时行情」+ 实时行情 toast；
-// 盘后/周末/节假日 → 「同步最新数据」+ 收盘数据 toast。
-// marketDays 传交易日历数组（可空，来自 yieldcraft_trade_calendar_v2）。
-// 单一文案来源（getRefreshUILabels），按钮与手动刷新成功 toast 共用，防止文案漂移。
-// 按钮校准时机：页面初始化（DOMContentLoaded）、refreshData 完成（finally）、
-// 交易日历异步加载完成（applyTradeCal）——保证文案始终与最新盘中/盘后判定一致。
-function getRefreshUILabels(marketDays) {
-    const isSession = isMarketSession(marketDays);
-    return isSession
-        ? { btn: '获取实时行情', toast: '✅ 已成功获取最新实时行情数据！' }
-        : { btn: '同步最新数据', toast: '✅ 已成功同步最新收盘数据！' };
-}
-
-function updateRefreshBtnLabel(marketDays) {
-    const btn = document.getElementById('refreshBtn');
-    if (!btn) return;
-    btn.textContent = getRefreshUILabels(marketDays).btn;
-}
-
-// 行情缓存：{ ts: 时间戳, data: {code: quote} }（盘后无 TTL——收盘价就是最新有效价）
-function loadQuotesCache() {
-    try {
-        const raw = localStorage.getItem(STORAGE_QUOTES_CACHE_KEY);
-        if (!raw) return null;
-        const data = JSON.parse(raw);
-        return (data && data.ts && data.data && Object.keys(data.data).length) ? data : null;
-    } catch (e) { return null; }
-}
-
-function saveQuotesCache(ts, quotes) {
-    try { localStorage.setItem(STORAGE_QUOTES_CACHE_KEY, JSON.stringify({ ts, data: quotes })); } catch (e) {}
-}
-
-// 分红缓存：{ code: { ts, records } }，按 code 独立 24h TTL
-function loadDividendsCache() {
-    try {
-        const raw = localStorage.getItem(STORAGE_DIVIDENDS_CACHE_KEY);
-        return raw ? JSON.parse(raw) : {};
-    } catch (e) { return {}; }
-}
-
-function saveDividendsCache(cache) {
-    try { localStorage.setItem(STORAGE_DIVIDENDS_CACHE_KEY, JSON.stringify(cache)); } catch (e) {}
-}
-
-function setOnlineStatus(online) {
-    const dot = document.getElementById('statusDot');
-    const text = document.getElementById('statusText');
-    if (online) {
-        dot.className = 'status-dot online';
-        text.className = 'status-text online';
-        text.textContent = '在线';
-    } else {
-        dot.className = 'status-dot offline';
-        text.className = 'status-text offline';
-        text.textContent = '离线';
-    }
-}
-
-// bustCache=true 时在 URL 追加时间戳参数 &_t=Date.now()：Cloudflare 按完整 URL 做边缘缓存
-// （/api/quotes 为 15s s-maxage），时间戳使 URL 唯一 → 强制穿透 CDN 直达 Worker 抓最新数据。
-// 用于：手动强刷、盘后补拉收盘价（防止命中 15s 内残留的盘中旧边缘副本）。
-async function fetchQuotes(codes, bustCache = false) {
-    if (!codes.length) return {};
-    try {
-        const qs = codes.join(',');
-        const url = `${API_BASE}/api/quotes?codes=${qs}${bustCache ? `&_t=${Date.now()}` : ''}`;
-        const resp = await fetch(url);
-        if (!resp.ok) throw new Error('行情请求失败');
-        return await resp.json();
-    } catch (err) {
-        console.error('fetchQuotes error:', err);
-        throw err;
-    }
-}
-
-async function fetchDividends(code) {
-    try {
-        const url = `${API_BASE}/api/dividends?code=${code}`;
-        const resp = await fetch(url);
-        if (!resp.ok) throw new Error('分红请求失败');
-        return await resp.json() || [];
-    } catch (err) {
-        console.error('fetchDividends error:', err);
-        return null; // 失败返回 null：调用方区分"接口失败"（不写缓存）与"真无分红"（空数组）
-    }
-}
-
-// 获取后端交易日（全局统一以交易日作为"今天"），失败返回 null 由调用方回退本地日期
-async function fetchTradeDate() {
-    try {
-        const resp = await fetch(`${API_BASE}/api/trade-date`);
-        if (!resp.ok) throw new Error('交易日期请求失败');
-        return await resp.json();
-    } catch (err) {
-        console.error('fetchTradeDate error:', err);
-        return null;
-    }
-}
-
-// 获取 [start, 最近交易日] 区间内的A股交易日列表（一次请求，前端本地统计各持仓天数）
-// 返回 { days, calendarStart, endDate, start }；接口失败或列表为空返回 null
-async function fetchTradeDayList(start) {
-    try {
-        const resp = await fetch(`${API_BASE}/api/trade-days?start=${start}`);
-        if (!resp.ok) throw new Error('交易日列表请求失败');
-        const data = await resp.json();
-        if (!Array.isArray(data.trade_days) || !data.trade_days.length) return null;
-        return {
-            days: data.trade_days,
-            calendarStart: data.calendar_start || data.trade_days[0],
-            endDate: data.end_date || '',
-            start: start
-        };
-    } catch (err) {
-        console.error('fetchTradeDayList error:', err);
-        return null;
-    }
-}
-
-// 交易日历本地缓存（同日复用，避免重复请求）
-// 注意：v2 起缓存记录请求起点 start——校验命中时必须确认列表覆盖当前所有持仓的最早买入日
-const STORAGE_TRADE_CAL_KEY = 'yieldcraft_trade_calendar_v2';
-
-function loadTradeCalCache() {
-    try {
-        const raw = localStorage.getItem(STORAGE_TRADE_CAL_KEY);
-        if (!raw) return null;
-        const data = JSON.parse(raw);
-        return (data && Array.isArray(data.days) && data.days.length && data.calendarStart) ? data : null;
-    } catch (e) { return null; }
-}
-
-function saveTradeCalCache(cal) {
-    try { localStorage.setItem(STORAGE_TRADE_CAL_KEY, JSON.stringify(cal)); } catch (e) {}
-}
-
-// ================== 分红分析逻辑 ==================
-function classifyFrequencyByCount(n12) {
-    if (n12 <= 0) return '无分红';
-    if (n12 >= 11) return '每月';
-    if (n12 >= 5) return '每两月';
-    if (n12 === 4) return '每季度';
-    if (n12 === 3) return '约每4个月';
-    if (n12 === 2) return '每半年';
-    if (n12 === 1) return '每年';
-    return '不定期';
-}
-
-function analyzeDividends(records, today) {
-    const analysis = {
-        count: records.length, frequency: '无分红', ttm_per_share: 0.0, ttm_count: 0,
-        latest: null, next_est: null, next_announced: false, est_annual_per_share: 0.0, annual_totals: {}
-    };
-    if (!records.length) return analysis;
-
-    const cutoff = new Date(today);
-    cutoff.setFullYear(cutoff.getFullYear() - 1);
-    cutoff.setHours(0,0,0,0);
-    let ttmSum = 0, ttmN = 0;
-    for (const r of records) {
-        const d = parseDate(r.ex_date);
-        if (d && d >= cutoff && d <= today) {
-            ttmSum += r.per_share;
-            ttmN++;
+    url = "https://qt.gtimg.cn/q=" + ",".join(syms)
+    resp = get_with_retry(url)
+    resp.encoding = "gbk"
+    for m in re.finditer(r'v_(s[hz]\d{6})="([^"]*)"', resp.text):
+        code = m.group(1)[2:]
+        parts = m.group(2).split("~")
+        if len(parts) < 5 or not parts[3]:
+            continue
+        try:
+            price = float(parts[3])
+        except ValueError:
+            continue
+        result[code] = {
+            "price": price,
+            "name": parts[1],
+            "prev_close": float(parts[4]) if parts[4] else None,
+            "pct": float(parts[32]) if len(parts) > 32 and parts[32] else None,
         }
-        const y = r.year || r.ex_date.substring(0,4);
-        if (!analysis.annual_totals[y]) analysis.annual_totals[y] = 0;
-        analysis.annual_totals[y] = Math.round((analysis.annual_totals[y] + r.per_share) * 100000) / 100000;
-    }
-    analysis.ttm_per_share = Math.round(ttmSum * 100000) / 100000;
-    analysis.ttm_count = ttmN;
+    return result
 
-    if (analysis.ttm_per_share > 0) {
-        analysis.est_annual_per_share = analysis.ttm_per_share;
-    } else if (Object.keys(analysis.annual_totals).length) {
-        const years = Object.keys(analysis.annual_totals).sort();
-        analysis.est_annual_per_share = analysis.annual_totals[years[years.length-1]];
-    } else {
-        analysis.est_annual_per_share = records[records.length-1].per_share;
-    }
 
-    analysis.latest = records[records.length-1];
-    if (analysis.ttm_count >= 1) {
-        analysis.frequency = classifyFrequencyByCount(analysis.ttm_count);
-    } else {
-        const dates = records.map(r => parseDate(r.ex_date)).filter(d => d);
-        if (dates.length >= 2) {
-            const intervals = [];
-            for (let i = 0; i < dates.length - 1; i++) intervals.push(dateDiffInDays(dates[i], dates[i+1]));
-            intervals.sort((a,b)=>a-b);
-            const median = intervals[Math.floor(intervals.length/2)];
-            analysis.frequency = median > 200 ? '每年' : (median > 75 ? '每半年' : '不定期');
+def fetch_quotes_eastmoney(codes):
+    """东财行情接口（备用）"""
+    result = {}
+    secids = []
+    for c in codes:
+        _, mkt = classify_code(c)
+        secids.append(("1." if mkt == "SH" else "0.") + c)
+
+    params = {"secids": ",".join(secids), "fields": "f2,f3,f12,f14,f18", "fltt": "2", "invt": "2"}
+    data = get_with_retry(QUOTE_URL, params=params).json()
+    for d in (data.get("data") or {}).get("diff", []):
+        code = d.get("f12")
+        if code is None or d.get("f2") in (None, "-"):
+            continue
+        result[code] = {
+            "price": float(d["f2"]),
+            "name": d.get("f14", ""),
+            "pct": d.get("f3"),
+            "prev_close": d.get("f18"),
         }
-    }
-
-    const upcoming = records.filter(r => { const d = parseDate(r.ex_date); return d && d > today; });
-    if (upcoming.length) {
-        upcoming.sort((a,b) => parseDate(a.ex_date) - parseDate(b.ex_date));
-        const u = upcoming[0];
-        analysis.next_est = [parseDate(u.ex_date), u.per_share];
-        analysis.next_announced = true;
-    } else {
-        const twoYearsAgo = new Date(today);
-        twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-        const recent2y = records.filter(r => { const d = parseDate(r.ex_date); return d && d >= twoYearsAgo; });
-        const pool = recent2y.length ? recent2y : records;
-        const lastDate = parseDate(records[records.length-1].ex_date);
-        const months = [];
-        for (const r of pool) {
-            const d = parseDate(r.ex_date);
-            if (d && !months.includes(d.getMonth()+1)) months.push(d.getMonth()+1);
-        }
-        months.sort((a,b)=>a-b);
-        const candidates = [];
-        if (lastDate && months.length) {
-            for (const mo of months) {
-                let d = new Date(lastDate);
-                d.setDate(1); d.setMonth(mo-1);
-                if (d <= lastDate) d.setFullYear(d.getFullYear()+1);
-                candidates.push(d);
-            }
-        }
-        if (candidates.length) {
-            candidates.sort((a,b)=>a-b);
-            const nd = candidates[0];
-            const sameMonth = records.filter(r => { const d = parseDate(r.ex_date); return d && d.getMonth() === nd.getMonth(); });
-            let amt = sameMonth.length ? sameMonth[sameMonth.length-1].per_share : pool.slice(-3).map(r => r.per_share).sort((a,b)=>a-b)[0];
-            analysis.next_est = [nd, Math.round((amt || 0) * 100000) / 100000];
-        }
-    }
-    return analysis;
-}
-
-// ================== 构建表格行数据 ==================
-async function buildRows(holdings, quotes, dividendsMap, today) {
-    const rows = [];
-    for (const h of holdings) {
-        const code = h.code;
-        const [typ] = classifyCode(code);
-        const recs = dividendsMap[code] || [];
-        const analysis = analyzeDividends(recs, today);
-        const quote = quotes[code] || {};
-        const price = quote.price || null;
-        const shares = h.shares || 0;
-        const cost = h.cost;
-
-        let mv = price !== null ? Math.round(price * shares * 100) / 100 : null;
-        const est = analysis.est_annual_per_share;
-        let pct = quote.pct !== undefined ? Number(quote.pct) : null;
-        const costTotal = cost !== null ? Math.round(cost * shares * 100) / 100 : null;
-        const capitalEmployed = cost !== null ? Math.round(Math.max(cost, 0) * shares * 100) / 100 : 0;
-
-        let yieldCost = (cost !== null && cost > 0 && est) ? (est / cost * 100) : null;
-        const yieldPrice = (price && est) ? (est / price * 100) : null;
-        const income = Math.round(est * shares * 100) / 100;
-
-        // 持仓天数初始为 null（绝对不显示），由 applyTradeCal 在交易日历就绪后异步填充
-        let holdDays = null;
-
-        rows.push({
-            code, name: quote.name || h.name || '', type: typ, price, pct, cost, shares, mv,
-            costTotal, capitalEmployed, freq: analysis.frequency, yieldCost, yieldPrice,
-            estAnnual: est, income, next: analysis.next_est, nextAnnounced: analysis.next_announced,
-            holdDays, records: recs, analysis
-        });
-    }
-    return rows;
-}
-
-function fmtNext(row) {
-    if (row.next) {
-        const [nd, amt] = row.next;
-        const dateStr = row.nextAnnounced
-            ? `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}-${String(nd.getDate()).padStart(2,'0')}`
-            : `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
-        const tag = row.nextAnnounced ? '' : '约 ';
-        const text = `${dateStr} ${tag}${amt.toFixed(4)}元/股`;
-
-        if (row.nextAnnounced) {
-            return `<div class="next-pred-container">
-                <span class="next-pred-text">${escapeHtml(text)}</span>
-                <span class="badge-announced">已公告</span>
-            </div>`;
-        } else {
-            return `<div class="next-pred-container">
-                <span class="next-pred-text">${escapeHtml(text)}</span>
-            </div>`;
-        }
-    }
-    return row.freq === '无分红' ? '-' : '数据不足';
-}
-
-function fmtYieldCost(row) {
-    if (row.yieldCost !== null) return row.yieldCost.toFixed(2) + '%';
-    if (row.cost !== null && row.cost <= 0) return '已回本∞';
-    return '--';
-}
-
-// ================== 自定义列与排序Modal交互 ==================
-function openColumnModal() {
-    // 确保 code 和 name 始终在最前
-    tempModalColumnOrder = [...columnOrder];
-    renderColumnModalList();
-    document.getElementById('columnModal').style.display = 'flex';
-}
-
-function closeColumnModal() {
-    document.getElementById('columnModal').style.display = 'none';
-}
-
-function renderColumnModalList() {
-    const container = document.getElementById('columnSettingList');
-    const map = new Map(TABLE_COLUMNS.map(col => [col.key, col]));
-
-    let html = '';
-    tempModalColumnOrder.forEach((key, index) => {
-        const col = map.get(key);
-        if (!col) return;
-        const isLocked = (key === 'code' || key === 'name');
-        const isPinned = pinnedColKey === key;
-        const pinBtnClass = isPinned ? 'pin-btn active' : 'pin-btn';
-
-        html += `
-        <div class="col-setting-item">
-          <span class="col-name">${escapeHtml(col.label)}${isLocked ? ' 🔒' : ''}</span>
-          <div class="col-setting-actions">
-            ${key === 'name' ? `<button type="button" class="${pinBtnClass}" style="padding: 4px 8px; font-size:12px;" onclick="setPinnedFromModal('${key}')" title="${isPinned ? '取消固定' : '固定最左侧'}">
-              📌 ${isPinned ? '已固定' : '锁定左侧'}
-            </button>` : ''}
-            <button type="button" class="move-btn" onclick="moveColumnItem(${index}, -1)" ${index === 0 || isLocked ? 'disabled' : ''}>⬆️ 上移</button>
-            <button type="button" class="move-btn" onclick="moveColumnItem(${index}, 1)" ${index === tempModalColumnOrder.length - 1 || isLocked ? 'disabled' : ''}>⬇️ 下移</button>
-          </div>
-        </div>
-        `;
-    });
-    container.innerHTML = html;
-}
-
-function moveColumnItem(index, direction) {
-    // 不允许移动 code 和 name
-    const key = tempModalColumnOrder[index];
-    if (key === 'code' || key === 'name') return;
-    const target = index + direction;
-    if (target < 0 || target >= tempModalColumnOrder.length) return;
-    const temp = tempModalColumnOrder[index];
-    tempModalColumnOrder[index] = tempModalColumnOrder[target];
-    tempModalColumnOrder[target] = temp;
-    renderColumnModalList();
-}
-
-function setPinnedFromModal(colKey) {
-    // 只允许固定名称列
-    if (colKey !== 'name') {
-        showToast('仅名称列支持固定', 'error');
-        return;
-    }
-    if (pinnedColKey === colKey) {
-        pinnedColKey = null;
-    } else {
-        pinnedColKey = colKey;
-    }
-    renderColumnModalList();
-}
-
-function resetColumnOrder() {
-    tempModalColumnOrder = TABLE_COLUMNS.map(c => c.key);
-    pinnedColKey = 'name';
-    renderColumnModalList();
-}
-
-function saveColumnConfigFromModal() {
-    // 确保 code 和 name 始终在最前
-    const fixedKeys = ['code', 'name'];
-    const rest = tempModalColumnOrder.filter(k => !fixedKeys.includes(k));
-    columnOrder = [...fixedKeys, ...rest];
-    saveColumnOrder(columnOrder);
-
-    if (pinnedColKey) {
-        localStorage.setItem(STORAGE_PINNED_COL_KEY, pinnedColKey);
-    } else {
-        localStorage.removeItem(STORAGE_PINNED_COL_KEY);
-    }
-    closeColumnModal();
-    showToast('✅ 已保存自定义列顺序与固定设置！', 'success');
-    renderTable(currentRows);
-}
-
-// ================== 固定列交互 ==================
-function setPinnedColumn(colKey, event) {
-    if (event) event.stopPropagation();
-    // 仅允许固定名称列
-    if (colKey !== 'name') {
-        showToast('仅名称列支持固定', 'error');
-        return;
-    }
-    if (pinnedColKey === colKey) {
-        pinnedColKey = null;
-        localStorage.removeItem(STORAGE_PINNED_COL_KEY);
-        showToast('🔓 已取消固定名称列', 'success');
-    } else {
-        pinnedColKey = colKey;
-        localStorage.setItem(STORAGE_PINNED_COL_KEY, colKey);
-        showToast('📌 已固定名称列至最左侧', 'success');
-    }
-    renderTable(currentRows);
-}
-
-// ================== 界面渲染 ==================
-function renderCards(rows) {
-    const totalBookCost = rows.reduce((sum, r) => sum + (r.costTotal !== null ? r.costTotal : 0), 0);
-    const totalInvested = rows.reduce((sum, r) => sum + r.capitalEmployed, 0);
-    const totalIncome = rows.reduce((sum, r) => sum + r.income, 0);
-    const totalNextIncome = rows.reduce((sum, r) => sum + (r.next ? r.next[1] * r.shares : 0), 0);
-    const totalMv = rows.reduce((sum, r) => sum + (r.mv !== null ? r.mv : 0), 0);
-
-    const totalProfit = totalMv - totalBookCost;
-    let profitCls = totalProfit > 0 ? 'pos' : (totalProfit < 0 ? 'neg' : '');
-    const profitText = (totalProfit >= 0 ? '+' : '') + totalProfit.toFixed(2);
-    let profitPctText = '--';
-    if (totalBookCost > 0) {
-        const pct = totalProfit / totalBookCost * 100;
-        profitPctText = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
-    }
-
-    const yc = totalInvested ? (totalIncome / totalInvested * 100) : null;
-    const ycStr = yc ? yc.toFixed(2) + '%' : '--';
-
-    const yp = totalMv > 0 ? (totalIncome / totalMv * 100) : null;
-    const ypStr = yp ? yp.toFixed(2) + '%' : '--';
-
-    const monthlyAvg = totalIncome / 12;
-
-    document.getElementById('cardsContainer').innerHTML = `
-      <div class="card">
-        <div class="label">总市值</div>
-        <div class="value">${totalMv.toFixed(2)}</div>
-        <div class="card-subtext ${profitCls}">浮动盈亏 ${profitText} (${profitPctText})</div>
-      </div>
-      <div class="card">
-        <div class="label">投入本金</div>
-        <div class="value">${totalInvested.toFixed(2)}</div>
-      </div>
-      <div class="card">
-        <div class="label">全年总分红 (约)</div>
-        <div class="value gold">¥${totalIncome.toFixed(2)}</div>
-        <div class="card-subtext">下期预测合计: ¥${totalNextIncome.toFixed(2)}</div>
-      </div>
-      <div class="card">
-        <div class="label">月均分红 (约)</div>
-        <div class="value hl">¥${monthlyAvg.toFixed(2)}</div>
-      </div>
-      <div class="card">
-        <div class="label">整体成本股息率</div>
-        <div class="value hl">${ycStr}</div>
-        <div class="card-subtext">基于历史买入成本</div>
-      </div>
-      <div class="card">
-        <div class="label">组合动态股息率</div>
-        <div class="value hl">${ypStr}</div>
-        <div class="card-subtext">基于最新市场价格</div>
-      </div>
-    `;
-}
-
-// 阶梯指标文案：关键数字加粗醒目，测算公式以弱化小字展示（公式显示优化）
-function buildLadderMetrics(diff, overallYield, yieldPct, totalIncome) {
-    const neededCapital = (diff * 12) / (overallYield || 0.05);
-    const dripYears = totalIncome > 0 ? (diff * 12) / totalIncome : null;
-    const diffStr = diff.toFixed(2);
-    return `
-      <div class="metric-item">距离解锁下一档还差<strong>¥${diffStr}/月</strong></div>
-      <div class="metric-item">补仓升级需再投入本金约<strong>¥${Math.round(neededCapital).toLocaleString()}</strong><span class="metric-note">测算公式：每月缺口 ¥${diffStr} × 12 ÷ 组合动态股息率 ${yieldPct}%</span></div>
-      ${dripYears ? `<div class="metric-item">分红再投资复利自动升档预计<strong>${dripYears.toFixed(1)} 年</strong><span class="metric-note">测算公式：每月缺口 ¥${diffStr} × 12 ÷ 年分红约 ¥${Math.round(totalIncome).toLocaleString()}（假设每期分红全部再投资）</span></div>` : ''}
-    `;
-}
-
-function renderLadder(monthlyAvg, rows) {
-    const config = loadGoalConfig();
-    let levels = [];
-
-    if (config.mode === 'step') {
-        const step = Math.max(config.stepAmount || 500, 50);
-        const target = Math.max(config.targetMonthly || 5000, step);
-        let currentAmt = step;
-        let lv = 1;
-        while (currentAmt <= target) {
-            levels.push({ level: lv, name: `Lv.${lv} 阶段`, amount: currentAmt });
-            currentAmt += step;
-            lv++;
-        }
-    } else {
-        levels = (config.customLevels || []).slice().sort((a,b) => a.amount - b.amount);
-    }
-
-    if (!levels.length) {
-        levels = [{ level: 1, name: '基础现金流', amount: 500 }];
-    }
-
-    let currentLvObj = null;
-    let nextLvObj = null;
-
-    for (let i = 0; i < levels.length; i++) {
-        if (monthlyAvg >= levels[i].amount) {
-            currentLvObj = levels[i];
-        } else {
-            nextLvObj = levels[i];
-            break;
-        }
-    }
-
-    let progressPct = 0;
-    let descHtml = '';
-    let metricHtml = '';
-
-    const totalMv = rows.reduce((sum, r) => sum + (r.mv !== null ? r.mv : 0), 0);
-    const totalIncome = rows.reduce((sum, r) => sum + r.income, 0);
-    const overallYield = totalMv > 0 ? (totalIncome / totalMv) : 0.05;
-    const yieldPct = (overallYield * 100).toFixed(2);
-
-    if (!currentLvObj && nextLvObj) {
-        progressPct = Math.min(100, Math.max(0, (monthlyAvg / nextLvObj.amount) * 100));
-        const diff = nextLvObj.amount - monthlyAvg;
-        descHtml = `当前进度：尚未达到首档，首要目标：<span class="ladder-badge">${escapeHtml(nextLvObj.name)}</span>（目标：每月 ¥${nextLvObj.amount}）`;
-        metricHtml = buildLadderMetrics(diff, overallYield, yieldPct, totalIncome);
-    } else if (currentLvObj && nextLvObj) {
-        const baseAmt = currentLvObj.amount;
-        const targetAmt = nextLvObj.amount;
-        progressPct = Math.min(100, Math.max(0, ((monthlyAvg - baseAmt) / (targetAmt - baseAmt)) * 100));
-        const diff = targetAmt - monthlyAvg;
-        descHtml = `当前进度：<span class="ladder-badge">${escapeHtml(currentLvObj.name)}</span> 👉 下一档：<span class="ladder-badge">${escapeHtml(nextLvObj.name)}</span>（目标：每月 ¥${targetAmt}）`;
-        metricHtml = buildLadderMetrics(diff, overallYield, yieldPct, totalIncome);
-    } else {
-        progressPct = 100;
-        const topLv = currentLvObj || levels[levels.length - 1];
-        descHtml = `🎉 恭喜！已达当前最高阶段：<span class="ladder-badge gold">${escapeHtml(topLv.name)}</span>（月均分红 ¥${monthlyAvg.toFixed(2)}）`;
-        metricHtml = `<div class="metric-item">已达当前设置的最高目标。若想挑战更高的被动现金流，点击右上角「🎯 设置目标」调整阶梯即可。</div>`;
-    }
-
-    document.getElementById('ladderContainer').innerHTML = `
-      <div class="ladder-card">
-        <div class="ladder-header">
-          <div class="ladder-title">📊 现金流场景阶梯</div>
-          <button class="btn btn-outline" style="padding:4px 10px; font-size:12px;" onclick="openGoalModal()">🎯 设置目标</button>
-        </div>
-        <div class="ladder-info">${descHtml}</div>
-        <div class="ladder-metrics">${metricHtml}</div>
-        <div class="ladder-bar"><div class="ladder-fill" style="width:${progressPct.toFixed(1)}%;"></div></div>
-      </div>
-    `;
-}
-
-function renderTableHeader() {
-    const thead = document.querySelector('table thead');
-    if (!thead) return;
-    let tr = '<tr>';
-    const activeColumns = getActiveColumns();
-    activeColumns.forEach(col => {
-        const isPinned = pinnedColKey === col.key;
-        const pinnedClass = isPinned ? 'col-pinned-sticky' : '';
-        const pinTitle = isPinned ? '点击取消固定此列' : '点击固定此列到最左侧';
-        const pinBtnClass = isPinned ? 'pin-btn active' : 'pin-btn';
-
-        // 只有名称列显示图钉按钮并为图钉预留空间；名称列表头左对齐（沿用旧版），其余列居中
-        const isNameCol = col.key === 'name';
-        const pinBtnHtml = isNameCol
-            ? `<span class="${pinBtnClass}" onclick="setPinnedColumn('${col.key}', event)" title="${pinTitle}">📌</span>`
-            : '';
-        const thContentClass = isNameCol ? 'th-content has-pin' : '';
-        const alignClass = isNameCol ? 'l' : '';
-
-        tr += `<th class="${pinnedClass} ${alignClass}">
-            <span class="${thContentClass}">${col.label}</span>
-            ${pinBtnHtml}
-        </th>`;
-    });
-    tr += '</tr>';
-    thead.innerHTML = tr;
-}
-
-function renderTable(rows) {
-    renderTableHeader();
-    const tbody = document.getElementById('holdingsBody');
-    const activeColumns = getActiveColumns();
-    if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="${activeColumns.length}" style="text-align:center; color:#94a3b8; padding:32px;">暂无持仓资产，请点击左上方「+ 添加持仓」开始使用</td></tr>`;
-        return;
-    }
-
-    const displayRows = rows;
-    let trs = '';
-
-    for (let i = 0; i < displayRows.length; i++) {
-        const r = displayRows[i];
-        const isWatch = r.shares === 0;
-
-        if (r.price === null) {
-            let cellsHtml = '';
-            activeColumns.forEach(col => {
-                const isPinned = pinnedColKey === col.key;
-                const pinnedCls = isPinned ? 'col-pinned-sticky' : '';
-                let cls = [pinnedCls];
-                // 名称列左对齐（多行徽章文本统一左基线），其余列居中
-                if (col.key === 'name') cls.push('l');
-
-                let content = '--';
-                switch (col.key) {
-                    case 'code':
-                        content = escapeHtml(r.code);
-                        break;
-                    case 'name':
-                        content = escapeHtml(r.name);
-                        break;
-                    case 'cost':
-                        if (isWatch) content = '<span class="badge-observe">观察</span>';
-                        break;
-                    case 'yieldCost':
-                        if (isWatch) {
-                            content = '<span class="badge-observe">观察</span>';
-                        } else if (r.freq === '无分红') {
-                            content = '无分红';
-                            cls.push('zero');
-                        }
-                        break;
-                    case 'yieldPrice':
-                        if (r.freq === '无分红') {
-                            content = '无分红';
-                            cls.push('zero');
-                        }
-                        break;
-                    case 'next':
-                        if (r.freq === '无分红') {
-                            content = '无分红';
-                            cls.push('zero');
-                        }
-                        break;
-                    case 'income':
-                        if (isWatch) {
-                            content = '<span class="badge-observe">观察</span>';
-                        } else if (r.freq === '无分红') {
-                            content = '无分红';
-                            cls.push('zero');
-                        }
-                        break;
-                    case 'freq':
-                        if (r.freq === '无分红') cls.push('zero');
-                        content = escapeHtml(r.freq);
-                        break;
-                }
-                cellsHtml += `<td class="${cls.filter(Boolean).join(' ')}">${content}</td>`;
-            });
-            trs += `<tr>${cellsHtml}</tr>`;
-            continue;
-        }
-
-        let cellsHtml = '';
-        activeColumns.forEach(col => {
-            const isPinned = pinnedColKey === col.key;
-            const pinnedCls = isPinned ? 'col-pinned-sticky' : '';
-            let content = '';
-            let cls = [pinnedCls];
-            // 名称列左对齐（多行徽章文本统一左基线），其余列居中
-            if (col.key === 'name') cls.push('l');
-
-            switch (col.key) {
-                case 'code':
-                    content = escapeHtml(r.code);
-                    break;
-                case 'name':
-                    const subTagHtml = getSubTagHtml(r);
-                    const daysHtml = (r.holdDays !== null && r.holdDays !== undefined)
-                        ? `<span class="days-dark-badge" title="自买入日期（不含当日）起至最近交易日的A股交易日数">${r.holdDays}交易日</span>` : '';
-                    content = `<div class="name-container">
-                      ${daysHtml}
-                      <span class="name-text" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>
-                      <div class="name-sub-row">
-                        <span>${subTagHtml}</span>
-                      </div>
-                    </div>`;
-                    break;
-                case 'yieldCost':
-                    if (isWatch) {
-                        content = '<span class="badge-observe">观察</span>';
-                    } else if (r.freq === '无分红') {
-                        content = '无分红';
-                        cls.push('zero');
-                    } else {
-                        if (r.yieldCost !== null && r.yieldCost > 5) cls.push('hl');
-                        if (r.yieldCost === null && r.cost !== null && r.cost <= 0) cls.push('paid');
-                        content = fmtYieldCost(r);
-                    }
-                    break;
-                case 'yieldPrice':
-                    if (r.freq === '无分红') {
-                        content = '无分红';
-                        cls.push('zero');
-                    } else {
-                        content = r.yieldPrice !== null ? r.yieldPrice.toFixed(2) + '%' : '--';
-                    }
-                    break;
-                case 'next':
-                    if (r.freq === '无分红') {
-                        content = '无分红';
-                        cls.push('zero');
-                    } else {
-                        content = fmtNext(r);
-                    }
-                    break;
-                case 'income':
-                    if (isWatch) {
-                        content = '<span class="badge-observe">观察</span>';
-                    } else if (r.freq === '无分红') {
-                        content = '无分红';
-                        cls.push('zero');
-                    } else {
-                        content = '¥' + r.income.toFixed(2);
-                    }
-                    break;
-                case 'freq':
-                    if (r.freq === '无分红') cls.push('zero');
-                    content = escapeHtml(r.freq);
-                    break;
-                case 'cost':
-                    if (isWatch) {
-                        content = '<span class="badge-observe">观察</span>';
-                    } else {
-                        content = r.cost !== null ? r.cost.toFixed(3) + ' 元' : '--';
-                    }
-                    break;
-                case 'shares':
-                    if (r.shares === 0) {
-                        content = '<span class="badge-observe">观察</span>';
-                    } else {
-                        content = r.shares + ' 股';
-                    }
-                    break;
-                case 'price':
-                    content = r.price.toFixed(3) + ' 元';
-                    break;
-                case 'pct':
-                    if (r.pct !== null) {
-                        if (r.pct > 0) cls.push('pos');
-                        else if (r.pct < 0) cls.push('neg');
-                        content = (r.pct >= 0 ? '+' : '') + r.pct.toFixed(2) + '%';
-                    } else {
-                        content = '--';
-                    }
-                    break;
-            }
-
-            const classNameStr = cls.filter(Boolean).join(' ');
-            cellsHtml += `<td class="${classNameStr}">${content}</td>`;
-        });
-
-        trs += `<tr>${cellsHtml}</tr>`;
-    }
-    tbody.innerHTML = trs;
-}
-
-function getSubTagHtml(r) {
-    if (r.shares === 0) {
-        return '<span class="badge-watch">观察</span>';
-    } else if (r.cost !== null && r.price !== null) {
-        const profitVal = (r.price - r.cost) * r.shares;
-        const sign = profitVal >= 0 ? '+' : '';
-        if (r.cost > 0) {
-            const pctVal = ((r.price - r.cost) / r.cost) * 100;
-            const badgeClass = profitVal >= 0 ? 'badge-profit-pos' : 'badge-profit-neg';
-            return `<span class="${badgeClass}">${sign}${profitVal.toFixed(2)} (${sign}${pctVal.toFixed(2)}%)</span>`;
-        } else {
-            return `<span class="badge-profit-pos">${sign}${profitVal.toFixed(2)} (+∞%)</span>`;
-        }
-    } else {
-        return '<span class="badge-profit-none">未填成本</span>';
-    }
-}
-
-function renderDetail(rows) {
-    const container = document.getElementById('detailContainer');
-    if (!detailVisible) { container.innerHTML = ''; return; }
-    let html = '';
-    for (const r of rows) {
-        if (!r.records || !r.records.length) continue;
-        let its = '';
-        for (const rec of r.records) {
-            its += `<tr>
-                <td style='text-align:left;'>${escapeHtml(rec.ex_date)}</td>
-                <td style='text-align:right;'>${rec.per_share.toFixed(4)}</td>
-                <td style='text-align:left;'>${escapeHtml(rec.note || '')}</td>
-            </tr>`;
-        }
-        html += `<h2 class='section-title'>${escapeHtml(r.code)} ${escapeHtml(r.name)} 历次派息记录</h2>
-            <div style="overflow-x: auto;">
-              <table class='detail-table'>
-                  <thead>
-                    <tr><th style='text-align:left;'>除息日</th><th style='text-align:right;'>每股派息(元)</th><th style='text-align:left;'>分红方案</th></tr>
-                  </thead>
-                  <tbody>${its}</tbody>
-              </table>
-            </div>`;
-    }
-    container.innerHTML = html || '<p style="color:#94a3b8; font-size:13px; padding:10px 0;">暂无详细派息数据</p>';
-}
-
-function renderAll(rows, today, timeStr) {
-    currentRows = rows;
-    const totalIncome = rows.reduce((sum, r) => sum + r.income, 0);
-    const monthlyAvg = totalIncome / 12;
-    renderCards(rows);
-    renderTable(rows);
-    renderLadder(monthlyAvg, rows);
-    renderDetail(rows);
-    document.getElementById('dataTimeText').textContent = timeStr || `数据更新于 ${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-}
-
-// ================== 持仓天数徽章（异步填充） ==================
-// 依据真实A股交易日列表统计：买入当日不计入（> 买入日），截至最近交易日；
-// 观察标的/未填日期/列表不可用/买入日早于日历覆盖起点 → 一律不显示（不做近似回退）
-function applyTradeCal(tradeCal) {
-    if (!tradeCal || !Array.isArray(tradeCal.days) || !currentRows.length) return;
-    const holdings = loadHoldings();
-    const hMap = new Map(holdings.map(h => [h.code, h]));
-    currentRows.forEach(r => {
-        const h = hMap.get(r.code);
-        let holdDays = null;
-        if (h && h.shares > 0 && h.purchaseDate) {
-            if (!tradeCal.calendarStart || h.purchaseDate >= tradeCal.calendarStart) {
-                holdDays = tradeCal.days.filter(d => d > h.purchaseDate).length;
-            }
-        }
-        r.holdDays = holdDays;
-    });
-    renderTable(currentRows);
-    // 交易日历就绪后重新校准刷新按钮文案（异步拉取的新日历可能改变盘中/盘后判定）
-    updateRefreshBtnLabel(tradeCal.days);
-}
-
-// 获取交易日历：优先本地缓存，否则后台拉取并缓存。
-// 缓存命中必须同时满足：① 截止日=当前交易日（当日有效）；② 列表请求起点 start 不晚于当前最早买入日（覆盖所有持仓）
-function refreshTradeCal(earliestStart, tradeInfo) {
-    if (!earliestStart) return;
-    const cachedCal = loadTradeCalCache();
-    const tradeDateStr = (tradeInfo && /^\d{4}-\d{2}-\d{2}$/.test(tradeInfo.date || '')) ? tradeInfo.date : null;
-    if (tradeDateStr && cachedCal && cachedCal.endDate === tradeDateStr && (cachedCal.start || cachedCal.days[0]) <= earliestStart) {
-        applyTradeCal(cachedCal);
-        return;
-    }
-    fetchTradeDayList(earliestStart).then(cal => {
-        if (!cal) return;
-        if (tradeDateStr) {
-            cal.endDate = tradeDateStr;
-            saveTradeCalCache(cal);
-        }
-        applyTradeCal(cal);
-    }).catch(() => {});
-}
-
-// ================== 主数据刷新逻辑 ==================
-async function refreshData(isManual = false) {
-    const btn = document.getElementById('refreshBtn');
-    // 提升到函数级：finally 中需依据 marketDays 恢复动态按钮文案（try 块内 const 在 finally 不可见）
-    let marketDays = null;
-
-    if (btn) {
-        btn.disabled = true;
-        btn.textContent = '⏳ 刷新中...';
-    }
-
-    const holdings = loadHoldings();
-    const codes = holdings.map(h => h.code).filter(code => classifyCode(code)[0] !== 'unknown');
-
-    // 仅统计非观察且已填买入日期的持仓；取最早买入日作为交易日列表起点（一次请求覆盖全部持仓）
-    const buyDateHoldings = holdings.filter(h => h.shares > 0 && /^\d{4}-\d{2}-\d{2}$/.test(h.purchaseDate || ''));
-    const earliestStart = buyDateHoldings.length ? buyDateHoldings.map(h => h.purchaseDate).sort()[0] : null;
-
-    try {
-        // 关键路径只等行情+分红+交易日参考；交易日历列表不阻塞渲染（徽章异步填充）
-        // —— 防刷：盘后复用行情缓存，但排除「当天/历史交易日」的盘中旧快照
-        //    （isStaleIntradaySnapshot）；手动刷新强制穿透拉最新收盘价；
-        //    分红 24h 缓存但公告窗口（15:00~21:00）强制实时；命中即零 API 请求
-        const tradeCalCache = loadTradeCalCache(); // 含交易日列表，用于判断今天是否交易日
-        marketDays = (tradeCalCache && Array.isArray(tradeCalCache.days)) ? tradeCalCache.days : null;
-        const [quotesResult, dividendsMap, tradeInfo] = await Promise.all([
-            (async () => {
-                let q = null, ts = Date.now(), fromCache = false;
-                // 盘后缓存命中条件（2026-08-28 修复「盘后停留在盘中旧缓存」）：
-                // ① 非盘中时段；② 非手动刷新（手动=强制穿透，不读本地缓存）；
-                // ③ 缓存覆盖全部 code（新增持仓后新 code 不在缓存 → 重新拉取）；
-                // ④ 缓存快照不是过期的盘中价（isStaleIntradaySnapshot，如 13:24 的盘中数据
-                //    不能冒充 15:00 后的收盘价）
-                if (!isManual && !isMarketSession(marketDays)) {
-                    const cachedQuotes = loadQuotesCache();
-                    if (cachedQuotes && codes.every(c => cachedQuotes.data[c] !== undefined)
-                        && !isStaleIntradaySnapshot(cachedQuotes.ts, marketDays)) {
-                        q = cachedQuotes.data;
-                        ts = cachedQuotes.ts;
-                        fromCache = true;
-                    }
-                }
-                if (!q) {
-                    // 穿透拉取：手动强刷或盘后补拉收盘价时给 URL 追加时间戳 _t，
-                    // 绕过 Cloudflare 边缘缓存（quotes 15s s-maxage）中残留的盘中旧数据
-                    const bustCache = isManual || !isMarketSession(marketDays);
-                    q = await fetchQuotes(codes, bustCache);
-                    if (Object.keys(q).length) saveQuotesCache(Date.now(), q);
-                }
-                return { q, ts, fromCache };
-            })(),
-            (async () => {
-                const map = {};
-                const cache = loadDividendsCache();
-                const now = Date.now();
-                const inWindow = inAnnouncementWindow(); // 公告窗口内不用缓存，保证当天公告可见
-                const missCodes = [];
-                for (const code of codes) {
-                    const c = cache[code];
-                    // 有记录按 24h TTL；空记录（无分红）只信 1h，避免脏空缓存长期掩盖真实分红
-                    const ttl = (c && Array.isArray(c.records) && c.records.length) ? DIVIDENDS_CACHE_TTL : DIVIDENDS_EMPTY_CACHE_TTL;
-                    if (!inWindow && c && Array.isArray(c.records) && (now - (c.ts || 0)) < ttl) {
-                        map[code] = c.records;   // 命中：零请求
-                    } else {
-                        missCodes.push(code);
-                    }
-                }
-                if (missCodes.length) {
-                    await Promise.all(missCodes.map(async code => {
-                        const records = await fetchDividends(code);
-                        map[code] = records || []; // 接口失败(null)不写缓存，下次刷新自动重试
-                        if (records) cache[code] = { ts: Date.now(), records };
-                    }));
-                    saveDividendsCache(cache);
-                }
-                return map;
-            })(),
-            fetchTradeDate()
-        ]);
-        const quotes = quotesResult.q;
-
-        setOnlineStatus(true);
-        // 数据时间：缓存命中时显示缓存时刻（如"更新于 昨天 19:30"），避免"更新于现在"误导
-        const dataTime = new Date(quotesResult.ts);
-        const bj = getBeijingTime(dataTime);
-        const timeStr = `${String(bj.hour).padStart(2,'0')}:${String(bj.minute).padStart(2,'0')}:${String(dataTime.getSeconds()).padStart(2,'0')}`;
-
-        // 全局统一使用后端交易日作为"今天"，接口异常时回退本地日期
-        let today;
-        if (tradeInfo && /^\d{4}-\d{2}-\d{2}$/.test(tradeInfo.date || '')) {
-            today = parseDate(tradeInfo.date);
-        } else {
-            today = getToday();
-        }
-        const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-        const fullTimeText = `更新于 ${dateStr} ${timeStr}`;
-
-        const rows = await buildRows(holdings, quotes, dividendsMap, today);
-        renderAll(rows, today, fullTimeText);
-
-        // 交易日历异步就绪后填充持仓天数徽章（本地缓存命中则零网络请求）
-        refreshTradeCal(earliestStart, tradeInfo);
-
-        if (isManual) {
-            // 手动刷新已强制穿透（绕过本地缓存与 CDN 15s 边缘缓存），必然拿到最新数据；
-            // toast 与按钮文案联动：盘中→「实时行情」，盘后/休市/周末/节假日→「收盘数据」，
-            // 让用户明确知道盘后刷到的是收盘价而非盘中新价
-            showToast(getRefreshUILabels(marketDays).toast, 'success');
-        }
-    } catch (err) {
-        console.error('刷新数据异常:', err);
-        setOnlineStatus(false);
-        if (isManual) {
-            showToast('❌ 行情刷新失败，请检查网络或稍后重试', 'error');
-        }
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            // 按当前盘中/盘后状态恢复动态文案（替代固定 originalText）
-            updateRefreshBtnLabel(marketDays);
-        }
-    }
-}
-
-// ================== Bottom Sheet 持仓抽屉管理 ==================
-function openEditDrawer() {
-    const holdings = loadHoldings();
-    editingHoldings = JSON.parse(JSON.stringify(holdings));
-    renderDrawerHoldings();
-
-    const overlay = document.getElementById('editDrawerOverlay');
-    overlay.style.display = 'flex';
-    setTimeout(() => overlay.classList.add('active'), 10);
-}
-
-function closeEditDrawer() {
-    const overlay = document.getElementById('editDrawerOverlay');
-    overlay.classList.remove('active');
-    setTimeout(() => { overlay.style.display = 'none'; }, 250);
-}
-
-function renderDrawerHoldings() {
-    const container = document.getElementById('drawerHoldingsList');
-    if (!editingHoldings.length) {
-        container.innerHTML = '<div style="text-align:center; padding: 32px; color: var(--text-secondary); font-size:13px;">暂无持仓资产项目，请先添加持仓</div>';
-        return;
-    }
-
-    let html = '';
-    editingHoldings.forEach((item, index) => {
-        const rowMatch = currentRows.find(r => r.code === item.code);
-        const name = rowMatch ? rowMatch.name : '持仓股票';
-
-        html += `
-        <div class="drawer-card" data-code="${escapeHtml(item.code)}" data-name="${escapeHtml(name)}">
-          <div class="drawer-card-header">
-            <div class="drawer-card-title">
-              <span class="drawer-card-name">${escapeHtml(name)}</span>
-              <span class="drawer-card-code">${escapeHtml(item.code)}</span>
-            </div>
-            <div class="drawer-card-actions">
-              <button type="button" class="move-btn" onclick="moveDrawerHolding(${index}, -1)" ${index === 0 ? 'disabled' : ''} title="向上排序">⬆️</button>
-              <button type="button" class="move-btn" onclick="moveDrawerHolding(${index}, 1)" ${index === editingHoldings.length - 1 ? 'disabled' : ''} title="向下排序">⬇️</button>
-              <button type="button" class="del-btn" style="margin-left: 6px;" onclick="deleteDrawerHolding(${index})" title="删除持仓">删除</button>
-            </div>
-          </div>
-          <div class="drawer-card-grid">
-            <div class="drawer-input-group">
-              <label>持股数量 (0代表仅观察)</label>
-              <input type="number" class="input-shares" step="any" min="0" value="${item.shares !== null && item.shares !== undefined ? item.shares : ''}" placeholder="0" autocomplete="off">
-            </div>
-            <div class="drawer-input-group">
-              <label>成本价 (元)</label>
-              <input type="number" class="input-cost" step="any" value="${item.cost !== null && item.cost !== undefined ? item.cost : ''}" placeholder="买入单价 (选填)" autocomplete="off">
-            </div>
-            <div class="drawer-input-group" style="grid-column: 1 / -1;">
-              <label>买入日期 (选填，填写后按交易日统计持仓天数)</label>
-              <input type="date" class="input-purchase-date" value="${item.purchaseDate ? escapeHtml(item.purchaseDate) : ''}" autocomplete="off">
-            </div>
-          </div>
-        </div>
-        `;
-    });
-    container.innerHTML = html;
-}
-
-function syncEditingHoldingsFromDOM() {
-    const cards = document.querySelectorAll('.drawer-card');
-    if (!cards.length) return;
-    const updated = [];
-    cards.forEach(card => {
-        const code = card.dataset.code;
-        const sharesInput = card.querySelector('.input-shares');
-        const costInput = card.querySelector('.input-cost');
-        const purchaseDateInput = card.querySelector('.input-purchase-date');
-
-        const sharesVal = parseFloat(sharesInput.value);
-        const shares = (!isNaN(sharesVal) && sharesVal >= 0) ? sharesVal : 0;
-
-        const costVal = costInput.value.trim();
-        const cost = costVal !== '' ? parseFloat(costVal) : null;
-
-        const purchaseDate = purchaseDateInput ? purchaseDateInput.value.trim() : '';
-
-        updated.push({ code, shares, cost, purchaseDate });
-    });
-    editingHoldings = updated;
-}
-
-function moveDrawerHolding(index, direction) {
-    syncEditingHoldingsFromDOM();
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= editingHoldings.length) return;
-
-    const temp = editingHoldings[index];
-    editingHoldings[index] = editingHoldings[targetIndex];
-    editingHoldings[targetIndex] = temp;
-
-    renderDrawerHoldings();
-}
-
-function deleteDrawerHolding(index) {
-    syncEditingHoldingsFromDOM();
-    const item = editingHoldings[index];
-    if (confirm(`确定要删除 ${item.code} 的持仓记录吗？`)) {
-        editingHoldings.splice(index, 1);
-        renderDrawerHoldings();
-    }
-}
-
-function saveDrawerHoldings() {
-    syncEditingHoldingsFromDOM();
-    saveHoldings(editingHoldings);
-    closeEditDrawer();
-    showToast('✅ 持仓变更已保存生效！', 'success');
-    refreshData();
-}
-
-// ================== 事件与交互处理 ==================
-function toggleAdd() {
-    const panel = document.getElementById('addStockPanel');
-    if (panel.style.display === 'none' || panel.style.display === '') {
-        panel.style.display = 'flex';
-    } else {
-        panel.style.display = 'none';
-    }
-}
-
-function toggleDetail() {
-    detailVisible = !detailVisible;
-    const btn = document.getElementById('toggleDetailBtn');
-    if (btn) btn.textContent = detailVisible ? '隐藏分红明细' : '显示分红明细';
-    renderDetail(currentRows);
-}
-
-document.getElementById('addForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const codeInput = this.querySelector('input[name="code"]');
-    const sharesInput = this.querySelector('input[name="shares"]');
-    const costInput = this.querySelector('input[name="cost"]');
-    const code = codeInput.value.trim().padStart(6, '0');
-
-    const sharesStr = sharesInput.value.trim();
-    const shares = sharesStr === '' ? 0 : parseFloat(sharesStr);
-
-    const costStr = costInput.value.trim();
-    const cost = costStr ? parseFloat(costStr) : null;
-
-    const purchaseDateInput = this.querySelector('input[name="purchaseDate"]');
-    const purchaseDate = purchaseDateInput ? purchaseDateInput.value.trim() : '';
-
-    if (!/^\d{6}$/.test(code) || isNaN(shares) || shares < 0) {
-        alert('请输入有效的6位股票代码与持股数量 (留空或0代表观察)');
-        return;
-    }
-
-    const holdings = loadHoldings();
-    const existing = holdings.find(h => h.code === code);
-    if (existing) {
-        existing.shares = shares;
-        existing.cost = cost;
-        existing.purchaseDate = purchaseDate;
-    } else {
-        holdings.push({code, shares, cost, purchaseDate});
-    }
-    saveHoldings(holdings);
-    this.reset();
-    document.getElementById('addStockPanel').style.display = 'none';
-    showToast(`✅ 已成功添加/更新股票 ${code}`, 'success');
-    refreshData();
-});
-
-// ================== 赞赏弹窗控制 ==================
-function openSponsorModal() {
-    document.getElementById('sponsorModal').style.display = 'flex';
-}
-
-function closeSponsorModal() {
-    document.getElementById('sponsorModal').style.display = 'none';
-}
-
-function showThankYouAlert() {
-    alert("🎉 收到！感谢你请的可乐续命能量！\n\n祝你持仓现金流滚滚来，收益长虹！💰");
-    closeSponsorModal();
-}
-
-// ================== 目标弹窗控制 ==================
-function openGoalModal() {
-    const config = loadGoalConfig();
-    switchGoalMode(config.mode || 'custom');
-
-    document.getElementById('stepTargetMonthly').value = config.targetMonthly || 5000;
-    document.getElementById('stepAmount').value = config.stepAmount || 500;
-
-    const listContainer = document.getElementById('customLevelsList');
-    listContainer.innerHTML = '';
-    const levels = config.customLevels && config.customLevels.length ? config.customLevels : DEFAULT_GOAL_CONFIG.customLevels;
-    levels.forEach(item => {
-        addCustomLevelRow(item.name, item.amount);
-    });
-
-    document.getElementById('goalModal').style.display = 'flex';
-}
-
-function closeGoalModal() {
-    document.getElementById('goalModal').style.display = 'none';
-}
-
-function switchGoalMode(mode) {
-    const customBtn = document.getElementById('modeBtnCustom');
-    const stepBtn = document.getElementById('modeBtnStep');
-    const customPanel = document.getElementById('modeCustomPanel');
-    const stepPanel = document.getElementById('modeStepPanel');
-
-    if (mode === 'custom') {
-        customBtn.classList.add('active');
-        stepBtn.classList.remove('active');
-        customPanel.style.display = 'block';
-        stepPanel.style.display = 'none';
-    } else {
-        stepBtn.classList.add('active');
-        customBtn.classList.remove('active');
-        stepPanel.style.display = 'block';
-        customPanel.style.display = 'none';
-    }
-}
-
-function addCustomLevelRow(name = '', amount = '') {
-    const container = document.getElementById('customLevelsList');
-    const div = document.createElement('div');
-    div.className = 'custom-level-row';
-    div.innerHTML = `
-        <input type="text" class="level-name-input" placeholder="关卡名称 (如外卖自由)" value="${escapeHtml(name)}" autocomplete="off">
-        <input type="number" class="level-amount-input" placeholder="目标金额(元/月)" value="${amount}" autocomplete="off">
-        <button type="button" class="del-btn" onclick="this.parentElement.remove()">删除</button>
-    `;
-    container.appendChild(div);
-}
-
-function saveGoalFromModal() {
-    const isCustom = document.getElementById('modeBtnCustom').classList.contains('active');
-    const config = loadGoalConfig();
-
-    if (isCustom) {
-        config.mode = 'custom';
-        const rows = document.querySelectorAll('.custom-level-row');
-        const customLevels = [];
-        let lvCounter = 1;
-        rows.forEach(row => {
-            const name = row.querySelector('.level-name-input').value.trim();
-            const amount = parseFloat(row.querySelector('.level-amount-input').value);
-            if (name && !isNaN(amount) && amount > 0) {
-                customLevels.push({ level: lvCounter++, name, amount });
-            }
-        });
-        customLevels.sort((a,b) => a.amount - b.amount);
-        if (!customLevels.length) {
-            alert('请至少设置一个有效的场景目标关卡！');
-            return;
-        }
-        config.customLevels = customLevels;
-    } else {
-        config.mode = 'step';
-        const targetMonthly = parseFloat(document.getElementById('stepTargetMonthly').value);
-        const stepAmount = parseFloat(document.getElementById('stepAmount').value);
-        if (isNaN(targetMonthly) || isNaN(stepAmount) || targetMonthly <= 0 || stepAmount <= 0) {
-            alert('请填入有效的递增数值！');
-            return;
-        }
-        config.targetMonthly = targetMonthly;
-        config.stepAmount = stepAmount;
-    }
-
-    saveGoalConfig(config);
-    closeGoalModal();
-    refreshData();
-}
-
-// ================== 全量数据导出与导入 ==================
-function exportData() {
-    const holdings = loadHoldings();
-    const goalConfig = loadGoalConfig();
-    const exportBundle = {
-        version: 'v2',
-        exportTime: new Date().toISOString(),
-        holdings: holdings,
-        goalConfig: goalConfig,
-        columnOrder: columnOrder,
-        pinnedColKey: pinnedColKey
-    };
-    const dataStr = JSON.stringify(exportBundle, null, 2);
-    const blob = new Blob([dataStr], {type: 'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `yieldcraft_backup_${getToday().toISOString().slice(0,10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-}
-
-function importData(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const data = JSON.parse(e.target.result);
-
-            let importedHoldings = [];
-            let importedGoal = null;
-
-            if (Array.isArray(data)) {
-                importedHoldings = data;
-            } else if (data && typeof data === 'object' && Array.isArray(data.holdings)) {
-                importedHoldings = data.holdings;
-                if (data.goalConfig) importedGoal = data.goalConfig;
-                if (Array.isArray(data.columnOrder)) {
-                    columnOrder = data.columnOrder;
-                    saveColumnOrder(columnOrder);
-                }
-                if (data.pinnedColKey !== undefined) {
-                    pinnedColKey = data.pinnedColKey;
-                    if (pinnedColKey === 'name') {
-                        localStorage.setItem(STORAGE_PINNED_COL_KEY, pinnedColKey);
-                    } else {
-                        pinnedColKey = 'name';
-                        localStorage.setItem(STORAGE_PINNED_COL_KEY, 'name');
-                    }
-                }
-            } else {
-                throw new Error('解析格式错误，无法识别持仓数据');
-            }
-
-            importedHoldings.forEach(item => {
-                if (!item.code || !/^\d{6}$/.test(item.code)) throw new Error('包含无效股票代码');
-                if (typeof item.shares !== 'number' || item.shares < 0) throw new Error('包含无效持股数量');
-            });
-
-            saveHoldings(importedHoldings);
-            if (importedGoal) {
-                saveGoalConfig(importedGoal);
-            }
-
-            showToast('持仓资产与目标配置导入成功！', 'success');
-            refreshData();
-        } catch (err) {
-            alert('导入失败：' + err.message);
-        }
-        event.target.value = '';
-    };
-    reader.readAsText(file);
-}
-
-// ================== 初始化 ==================
-document.addEventListener('DOMContentLoaded', () => {
-    // 先用本地交易日历校准刷新按钮文案（refreshData 完成后会再校准一次）
-    const cal = loadTradeCalCache();
-    updateRefreshBtnLabel(cal && Array.isArray(cal.days) ? cal.days : null);
-    refreshData(false);
-    checkWelcome();
-    checkBackupRemind();
-});
-</script>
-</body>
-</html>
+    return result
+
+
+def fetch_quotes(codes):
+    """获取行情，优先腾讯，失败后回退东财。"""
+    if not codes:
+        return {}
+    try:
+        r = fetch_quotes_tencent(codes)
+        if r:
+            return r
+    except Exception:
+        pass
+    try:
+        return fetch_quotes_eastmoney(codes)
+    except Exception:
+        return {}
+
+
+# --------------------------------------------------------------------------
+# 分红数据
+# --------------------------------------------------------------------------
+def parse_stock_dividends(code):
+    """解析股票（A股）分红数据"""
+    _, mkt = classify_code(code)
+    secu = ("SH" if mkt == "SH" else "SZ") + code
+    j = get_with_retry(STOCK_DIV_URL, params={"code": secu}).json()
+    records = []
+    for it in j.get("fhyx", []):
+        plan = it.get("IMPL_PLAN_PROFILE", "") or ""
+        ex_date = (it.get("EX_DIVIDEND_DATE") or "").strip()
+        if "派" not in plan or not ex_date:
+            continue
+        m = re.search(r"派\s*([\d.]+)\s*元", plan)
+        if not m:
+            continue
+        records.append({
+            "ex_date": ex_date[:10],
+            "per_share": round(float(m.group(1)) / 10.0, 5),
+            "year": ex_date[:4],
+            "note": plan,
+        })
+    records.sort(key=lambda r: r["ex_date"])
+    return records
+
+
+def parse_fund_dividends(code):
+    """解析场内 ETF/LOF 分红数据"""
+    resp = get_with_retry(FUND_DIV_URL.format(code=code))
+    resp.encoding = "utf-8"
+    soup = BeautifulSoup(resp.text, "html.parser")
+    records = []
+    table = soup.find("table", class_="cfxq")
+    if table and table.find("tbody"):
+        for tr in table.find("tbody").find_all("tr"):
+            if "暂无分红信息" in tr.get_text(" ", strip=True):
+                continue
+            tds = tr.find_all("td")
+            if len(tds) < 5:
+                continue
+            ex_date = tds[2].get_text(strip=True)
+            raw = tds[3].get_text(strip=True)
+            m = re.search(r"派现金\s*([\d.]+)", raw) or re.search(r"([\d.]+)\s*元", raw)
+            if not m:
+                continue
+            records.append({
+                "ex_date": ex_date,
+                "per_share": round(float(m.group(1)) / 10.0, 5),
+                "year": tds[0].get_text(strip=True).replace("年", ""),
+                "note": raw,
+            })
+    records.sort(key=lambda r: r["ex_date"])
+    return records
+
+
+def fetch_dividends(code):
+    """根据代码类型获取分红记录"""
+    typ, _ = classify_code(code)
+    if typ == "stock":
+        return parse_stock_dividends(code)
+    if typ == "fund":
+        return parse_fund_dividends(code)
+    return []
+
+
+# --------------------------------------------------------------------------
+# HTTP 请求处理器
+# --------------------------------------------------------------------------
+class APIHandler(BaseHTTPRequestHandler):
+    def _send_json(self, data, status=200):
+        """发送 JSON 响应，带 CORS 头"""
+        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_error_json(self, message, status=400):
+        self._send_json({"error": message}, status)
+
+    def do_OPTIONS(self):
+        """处理 CORS 预检请求"""
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.end_headers()
+
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+        query = parse_qs(parsed.query)
+
+        # 健康检查
+        if path == "/api/health":
+            self._send_json({"status": "ok", "time": datetime.now().isoformat()})
+            return
+
+        # 行情接口
+        if path == "/api/quotes":
+            codes_param = query.get("codes", [""])[0]
+            codes = [c.strip() for c in codes_param.split(",") if c.strip()]
+            # 过滤非法代码格式
+            valid_codes = [c for c in codes if re.fullmatch(r"\d{6}", c)]
+            if not valid_codes:
+                self._send_error_json("缺少有效的 codes 参数", 400)
+                return
+            quotes = fetch_quotes(valid_codes)
+            self._send_json(quotes)
+            return
+
+        # 分红接口
+        if path == "/api/dividends":
+            code = query.get("code", [""])[0].strip()
+            if not re.fullmatch(r"\d{6}", code):
+                self._send_error_json("无效的股票代码", 400)
+                return
+            try:
+                records = fetch_dividends_with_cache(code)
+                self._send_json(records)
+            except Exception as e:
+                self._send_error_json(f"获取分红数据失败: {str(e)}", 500)
+            return
+
+        # 根路径简单说明
+        if path == "/":
+            self._send_json({
+                "service": "VPS 数据 API",
+                "endpoints": [
+                    "/api/health",
+                    "/api/quotes?codes=601668,513530",
+                    "/api/dividends?code=601668"
+                ]
+            })
+            return
+
+        # 其他路径 404
+        self._send_error_json("Not Found", 404)
+
+    def log_message(self, format, *args):
+        """自定义日志格式，简洁输出"""
+        sys.stderr.write("%s - - [%s] %s\n" %
+                         (self.address_string(),
+                          self.log_date_time_string(),
+                          format % args))
+
+
+# --------------------------------------------------------------------------
+# 主入口
+# --------------------------------------------------------------------------
+def main():
+    print("==============================================")
+    print(" VPS 纯数据 API 服务启动")
+    print("==============================================")
+    lan_ip = get_lan_ip()
+    print(f"监听端口: {PORT}")
+    print(f"本机访问: http://127.0.0.1:{PORT}")
+    print(f"局域网访问: http://{lan_ip}:{PORT}")
+    print("接口列表:")
+    print("  GET /api/health")
+    print("  GET /api/quotes?codes=601668,513530")
+    print("  GET /api/dividends?code=601668")
+    print("按 Ctrl+C 停止服务")
+
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), APIHandler)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n服务已停止")
+        server.server_close()
+
+
+if __name__ == "__main__":
+    main()
