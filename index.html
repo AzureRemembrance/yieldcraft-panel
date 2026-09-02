@@ -938,7 +938,7 @@
       · <b>组合动态股息率</b> = 预计全年总分红 ÷ 当前持仓总市值；反映按照今日市价重置或评估当前持仓组合时的即期现金收益率。<br>
       · <b>全年总分红（约）</b> = 近 12 个月每股/每份派息合计 × 持股数（按当前派息节奏估算）；<b>月均分红</b> = 全年总分红 ÷ 12。<br>
       · <b>下期预测</b> = 按各标的近期派息节奏推算的下一笔除息日与预计每股派息；已公告的显示具体日期并标注「已公告」，未公告的仅显示预估年月。<br>
-      · <b>持有天数</b> = 自买入日期（不含买入当日）起至最近交易日之间的<b>A股交易日数量</b>（基于上证指数真实交易日历）；仅对已填写买入日期的非观察持仓显示，未填写买入日期或“观察”标的均不显示。<br>
+      · <b>持有天数</b> = 自买入日期（含买入当日）起至今日之间的<b>A股交易日数量</b>（基于上证指数真实交易日历，周末与法定节假日不计入）；仅对已填写买入日期的非观察持仓显示，未填写买入日期或“观察”标的均不显示。<br>
       · <b>固定列小贴士</b> = 仅“名称”列支持固定至表格最左侧，点击表头右侧的 📌 按钮即可切换固定状态。
     </div>
 
@@ -2136,7 +2136,7 @@ function renderTable(rows) {
                 case 'name':
                     const subTagHtml = getSubTagHtml(r);
                     const daysHtml = (r.holdDays !== null && r.holdDays !== undefined)
-                        ? `<span class="days-dark-badge" title="自买入日期（不含当日）起至最近交易日的A股交易日数">${r.holdDays}交易日</span>` : '';
+                        ? `<span class="days-dark-badge" title="自买入日期（含当日）起至今日的A股交易日数">${r.holdDays}交易日</span>` : '';
                     content = `<div class="name-container">
                       ${daysHtml}
                       <span class="name-text" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>
@@ -2281,25 +2281,41 @@ function renderAll(rows, today, timeStr) {
 }
 
 // ================== 持仓天数徽章（异步填充） ==================
-// 依据真实A股交易日列表统计：买入当日不计入（> 买入日），截至最近交易日；
+// 依据真实A股交易日列表统计：买入当日【计入】（>= 买入日），截至【今日】（含今日）。
 // 观察标的/未填日期/列表不可用/买入日早于日历覆盖起点 → 一律不显示（不做近似回退）
 function applyTradeCal(tradeCal) {
     if (!tradeCal || !Array.isArray(tradeCal.days) || !currentRows.length) return;
     const holdings = loadHoldings();
     const hMap = new Map(holdings.map(h => [h.code, h]));
+    // 交易日列表统一补全到「今日」：盘中（15:00 前）今日日K未生成，日历最后一天滞后到
+    // 上一交易日（如 9/2 盘中只能拿到 9/1），导致「含今日」口径的持有天数少算今天。
+    const days = extendTradeDaysToToday(tradeCal.days);
     currentRows.forEach(r => {
         const h = hMap.get(r.code);
         let holdDays = null;
         if (h && h.shares > 0 && h.purchaseDate) {
             if (!tradeCal.calendarStart || h.purchaseDate >= tradeCal.calendarStart) {
-                holdDays = tradeCal.days.filter(d => d > h.purchaseDate).length;
+                holdDays = days.filter(d => d >= h.purchaseDate).length; // 含买入当日
             }
         }
         r.holdDays = holdDays;
     });
     renderTable(currentRows);
     // 交易日历就绪后重新校准刷新按钮文案（异步拉取的新日历可能改变盘中/盘后判定）
-    updateRefreshBtnLabel(tradeCal.days);
+    updateRefreshBtnLabel(days);
+}
+
+// 把交易日列表补全到「今日」：若今日为工作日（周一~周五）且不在列表中，则追加今日。
+// 说明：交易日历源自上证指数日K，盘中/盘后 15:00 前「今日日K未生成」→ 日历最后一天滞后
+// 一天，若不补今日，「含今日」的口径会少算 1 天。周末（周六/周日）不是交易日，不补。
+// 节假日当天（工作日）会短暂多算 1 天，收盘后真实日历更新即自动纠正，属可接受的近似。
+function extendTradeDaysToToday(days) {
+    if (!Array.isArray(days) || !days.length) return days;
+    const today = getBeijingDateString();
+    if (days[days.length - 1] === today) return days;
+    const dow = new Date(today + 'T00:00:00+08:00').getDay();
+    if (dow === 0 || dow === 6) return days;
+    return [...days, today];
 }
 
 // 获取交易日历：优先本地缓存，否则后台拉取并缓存。
