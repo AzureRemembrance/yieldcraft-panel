@@ -271,6 +271,16 @@
   .card .card-subtext.pos { color: var(--red); font-weight: 600; }
   .card .card-subtext.neg { color: var(--green); font-weight: 600; }
 
+  /* 股息率单元格：主数字（前瞻口径）+ 副行小字（上年实际 / 近12月），不新增列 */
+  .yield-cell { display: flex; flex-direction: column; align-items: center; line-height: 1.25; }
+  .yield-cell .yield-main { font-weight: 600; }
+  .yield-cell .yield-sub {
+    font-size: 10px; font-weight: 400; color: var(--text-secondary);
+    margin-top: 1px; white-space: nowrap;
+  }
+  .yield-cell .yield-sub .sub-label { opacity: .85; }
+  .yield-cell .yield-sub.warn { color: var(--gold); }
+
   /* 工具栏与按钮 */
   .toolbar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
   .btn {
@@ -771,6 +781,26 @@
   .detail-table th, .detail-table td { padding: 9px 16px; font-size: 13px; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
   .detail-table th { background: #f8fafc; color: var(--text-secondary); font-weight: 600; }
 
+  /* 分红明细·口径小结（三个口径并列，说明分别是哪几笔） */
+  .period-summary {
+    font-size: 12px; line-height: 1.75; color: var(--text-secondary);
+    background: #f8fafc; border: 1px solid var(--border-color);
+    border-radius: 8px; padding: 10px 14px; margin-bottom: 10px;
+  }
+  .period-summary b { color: var(--text-primary); }
+  .fwd-mark { color: var(--red); font-size: 10px; vertical-align: middle; }
+  .detail-table tr.row-fwd { background: #fffbf5; }
+
+  /* 数据源降级警示横幅（如后端未升级、拿不到"报告期"字段） */
+  .warn-banner {
+    margin: 0 0 12px; padding: 10px 14px;
+    font-size: 12px; line-height: 1.7;
+    color: #92400e; background: #fffbeb;
+    border: 1px solid #fde68a; border-left: 3px solid var(--gold);
+    border-radius: 8px;
+  }
+  .warn-banner b { color: #78350f; }
+
   /* 页脚说明与免责声明 */
   .footer-note-card {
     background: #fff;
@@ -915,6 +945,7 @@
   </div>
 
   <!-- 持仓表格 -->
+  <div id="staleWarnBanner" class="warn-banner" style="display:none;"></div>
   <div class="table-wrapper">
     <table>
       <thead>
@@ -934,10 +965,12 @@
       <div class="footer-section-title">📊 计算与数据说明</div>
       · <b>观察标的</b> = 持股数量为 0 的标的，仅用于监测现价与股息率，不参与组合市值、成本及动态股息率的汇总计算。<br>
       · <b>总市值</b> = 当前价 × 持股数；<b>总浮动盈亏</b> = 总市值 - 券商账面总成本（负成本计入）。<br>
-      · <b>整体成本股息率</b> = 预计全年总分红 ÷ 投入本金总额；反映基于历史买入本金的实际现金收益率。<br>
-      · <b>组合动态股息率</b> = 预计全年总分红 ÷ 当前持仓总市值；反映按照今日市价重置或评估当前持仓组合时的即期现金收益率。<br>
-      · <b>全年总分红（约）</b> = 近 12 个月每股/每份派息合计 × 持股数（按当前派息节奏估算）；<b>月均分红</b> = 全年总分红 ÷ 12。<br>
-      · <b>下期预测</b> = 按各标的近期派息节奏推算的下一笔除息日与预计每股派息；已公告的显示具体日期并标注「已公告」，未公告的仅显示预估年月。<br>
+      · <b>股息率（双口径）</b>：主数字为<b>前瞻口径</b> —— 最近一份年报 + 最近一份中报/季报的<b>已实施</b>派息之和 ÷ 价格，含义是"未来一年预计能收到的现金"，与同花顺口径一致，但含预估成分；下方小字为<b>已实现口径</b> —— 股票取最近一个完整报告年度实际派息、ETF 取近 12 个月实际到账，均 ÷ 价格，100% 已发生。两者之差 ≈ 末期分红的同比增速。<br>
+      · <b>整体成本股息率</b> = 前瞻口径全年总分红 ÷ 投入本金总额；<b>组合动态股息率</b> = 前瞻口径全年总分红 ÷ 当前持仓总市值。<br>
+      · <b>全年总分红（约）</b> = 前瞻口径每股分红 × 持股数（按报告期配对估算）；<b>月均分红</b> = 全年总分红 ÷ 12。基金/ETF 没有财报报告期概念，改按"相邻除息日间隔中位数推算一年派 N 期、取最近 N 期之和"（月频 ETF → 12 期）。<br>
+      · <b>下期预测</b> = 按报告期推算：同一报告期上一轮除息日 + 1 年；已公告的显示具体日期并标注「已公告」，未公告的仅显示预估年月。<br>
+      · <b>一次性分红识别</b> = 某报告期类别首次启用、且金额 ≥ 其他报告期金额中位数的 1.5 倍时，判定为疑似一次性（特别）分红，<b>从前瞻口径中剔除</b>并在「显示分红明细」里单独列出——宁可保守，也不让一次性收益把股息率骗高。<br>
+      · <b>税前口径</b> = 所有派息金额均为税前；A股现金分红需缴红利税（持股满 1 年免征、1 个月至 1 年扣 10%、不满 1 个月扣 20%），实际到手会低于面板数值。<br>
       · <b>持有天数</b> = 自买入日期（含买入当日）起至今日之间的<b>A股交易日数量</b>（基于上证指数真实交易日历，周末与法定节假日不计入）；仅对已填写买入日期的非观察持仓显示，未填写买入日期或“观察”标的均不显示。<br>
       · <b>固定列小贴士</b> = 仅“名称”列支持固定至表格最左侧，点击表头右侧的 📌 按钮即可切换固定状态。
     </div>
@@ -1370,8 +1403,11 @@ function closeWelcomeModal() {
 // ---- 前端防刷缓存键（减少 API 调用）----
 const STORAGE_QUOTES_CACHE_KEY = 'yieldcraft_quotes_cache_v1';
 // v2：空数组（判定"无分红"）只信任 1h，防止东财接口偶发抖动把"无分红"钉死 24h；
-// 升级键名同时强制清掉旧版遗留的脏缓存（如 513530 曾缓存空记录）
-const STORAGE_DIVIDENDS_CACHE_KEY = 'yieldcraft_dividends_cache_v2';
+//     升级键名同时强制清掉旧版遗留的脏缓存（如 513530 曾缓存空记录）
+// v3（2026-09-15）：分红记录结构新增 report_date/progress/record_date 三个字段，
+//     v2 缓存里存的是【旧结构】（无报告期），若不升版会继续按旧结构喂给新算法
+//     → 前瞻口径全部退化成节律法、平安仍显示 6.7%。必须升 v3 强制重拉。
+const STORAGE_DIVIDENDS_CACHE_KEY = 'yieldcraft_dividends_cache_v3';
 const DIVIDENDS_CACHE_TTL = 24 * 3600 * 1000; // 有分红记录：缓存 24h（东财数据极少变动）
 const DIVIDENDS_EMPTY_CACHE_TTL = 1 * 3600 * 1000; // 空结果（无分红）：只缓存 1h，尽快自愈
 // 本地数据备份提醒（低频弹窗，每 30 天最多一次）
@@ -1596,6 +1632,227 @@ function saveTradeCalCache(cal) {
 }
 
 // ================== 分红分析逻辑 ==================
+// 【口径说明（2026-09-15 重写）】
+// 旧口径：预计年度每股分红 = 过去 365 天内所有除息记录之和（TTM 滚动求和）。
+//   BUG：365 天 ≠ 一个派息年度——一年派 2 期的公司，只要两期间隔之和 < 365 天，
+//   滚动窗口里就会塞进 3 期（601318 平安 3.68，虚高 35%）；月频 ETF 因窗口两端
+//   都落在除息日、且当年是双闭区间，必然塞进 13 期（513530 分子 0.13 而非 0.12）。
+//
+// 新口径 · 主（股票，有报告期）＝「报告期配对法」
+//   ① 按 REPORT_DATE 归组，同一报告期的多笔先求和（特别分红常与常规中期挂同一
+//      报告期、分两次除息，必须合并）；
+//   ② 对每个季度类别（Q1/Q2/Q3/Q4）取【最近一次已实施】的那一组；
+//   ③ 相加 = 前瞻分子。等价于"最近一份年报 + 最近一份中报/季报"，
+//      与同花顺口径一致：平安 1.75(2025年报) + 0.98(2026中报) = 2.73 → 53.90 上 5.06%。
+//
+// 新口径 · 兜底（基金/ETF 或旧接口无报告期）＝「节律法」
+//   按相邻除息日间隔的【标准中位数】推断一年派 N 期，取最近 N 期之和
+//   （月频 ETF → 12 期 = 0.12）。
+//
+// 同时算出两个副口径（都只出数，显示层再决定怎么摆）：
+//   · 上年实际（LFY）= 最近一个含年报(Q4)的完整报告年度合计 —— 100% 已发生
+//   · 近 12 个月到账   = 过去 365 天（左开右闭）实际除息合计 —— 真实现金进账
+//   前瞻 − 上年实际 = 末期分红的同比增速。
+const REPORT_CATEGORY_MAX_AGE_DAYS = 460; // 某季度类别超 ≈15 个月没出现 → 视为失效，不再参与前瞻
+const ONE_OFF_RATIO = 1.5;                // 首次启用的新类别且金额 ≥ 其他类别中位数 1.5 倍 → 疑似一次性
+
+function round5(v) { return Math.round(v * 100000) / 100000; }
+
+// 报告期 → 季度类别（Q1=03-31 / Q2=06-30 / Q3=09-30 / Q4=12-31）
+function reportQuarter(rd) {
+    const m = parseInt(rd.slice(5, 7), 10);
+    if (m <= 3) return 'Q1';
+    if (m <= 6) return 'Q2';
+    if (m <= 9) return 'Q3';
+    return 'Q4';
+}
+
+function quarterName(q) {
+    return q === 'Q1' ? '一季报' : q === 'Q2' ? '中报' : q === 'Q3' ? '三季报' : '年报';
+}
+
+// 从基准日按固定周期向前推进，直到落在"今天之后"（最多推 maxSteps 步，防异常数据死循环）。
+// 用途：数据陈旧时（上一次除息是去年甚至更早）也能给出一个未来的"下期预测"，
+// 而不是把过去日期当成下一期；推不满则返回 null（显示"数据不足"）。
+function nextOccurrence(baseDate, stepFn, today, maxSteps) {
+    const cap = maxSteps || 12;
+    let d = new Date(baseDate);
+    let i = 0;
+    while (d <= today && i < cap) { d = stepFn(d); i++; }
+    return d > today ? d : null;
+}
+
+// 标准中位数（旧版取 intervals[floor(n/2)] 在偶数期时偏大，这里修正）
+function medianOf(sortedArr) {
+    const n = sortedArr.length;
+    if (!n) return 0;
+    return n % 2 ? sortedArr[(n - 1) / 2] : (sortedArr[n / 2 - 1] + sortedArr[n / 2]) / 2;
+}
+
+// 按报告期归组：同一报告期的多笔合并求和
+function groupByReportDate(records) {
+    const map = new Map();
+    for (const r of records) {
+        if (!r.report_date) continue;
+        let g = map.get(r.report_date);
+        if (!g) { g = { report_date: r.report_date, sum: 0, ex_dates: [] }; map.set(r.report_date, g); }
+        g.sum += r.per_share;
+        g.ex_dates.push(r.ex_date);
+    }
+    return Array.from(map.values())
+        .map(g => { g.sum = round5(g.sum); g.ex_dates.sort(); return g; })
+        .sort((a, b) => a.report_date.localeCompare(b.report_date));
+}
+
+// 股票口径：报告期配对法
+function analyzeByReportPeriod(records, today) {
+    const groups = groupByReportDate(records);
+    if (!groups.length) return null;
+
+    const byQuarter = new Map();
+    for (const g of groups) {
+        const q = reportQuarter(g.report_date);
+        if (!byQuarter.has(q)) byQuarter.set(q, []);
+        byQuarter.get(q).push(g);
+    }
+
+    // 每个季度类别取最近一组；类别失效判定：最近一次报告期距今 > 460 天
+    const active = [];
+    for (const [q, list] of byQuarter) {
+        const last = list[list.length - 1];
+        const d = parseDate(last.report_date);
+        if (!d) continue;
+        if ((today - d) / 86400000 <= REPORT_CATEGORY_MAX_AGE_DAYS) {
+            active.push({ quarter: q, last, history: list, oneOff: false });
+        }
+    }
+    if (!active.length) return null;
+    active.sort((a, b) => a.quarter.localeCompare(b.quarter));
+
+    // 疑似一次性特别分红：① 该类别历史上只出现过 1 次（本次即首次启用）
+    //                   ② 且金额 ≥ 其他活跃类别金额中位数的 1.5 倍（显著的"额外加派"）
+    // 只靠"首次出现"判定会误伤——伊利(2025-09-30)、长江电力(2025-09-30) 都是首次
+    // 新增的中期报告期，属常态变更而非一次性，必须靠金额门槛区分开。
+    const allSums = active.map(a => a.last.sum);
+    if (groups.length >= 3) {
+        for (let i = 0; i < active.length; i++) {
+            const a = active[i];
+            const rest = allSums.filter((_, j) => j !== i);
+            if (a.history.length === 1 && rest.length) {
+                const med = medianOf(rest.slice().sort((x, y) => x - y));
+                a.oneOff = med > 0 && a.last.sum >= med * ONE_OFF_RATIO;
+            }
+        }
+    }
+
+    let forward = 0, special = 0;
+    const contributors = [];
+    for (const a of active) {
+        if (a.oneOff) special = round5(special + a.last.sum);
+        else { forward = round5(forward + a.last.sum); contributors.push(a); }
+    }
+    // 若全部被判定为一次性 → 不做剔除，避免前瞻分子归零造成"无分红"误判
+    if (!contributors.length) {
+        active.forEach(a => { a.oneOff = false; contributors.push(a); forward = round5(forward + a.last.sum); });
+        special = 0;
+    }
+
+    // 上年实际（LFY）：最近一个含年报(Q4)的完整报告年度合计
+    let lfy = null, lfyYear = null;
+    const q4years = groups.filter(g => reportQuarter(g.report_date) === 'Q4').map(g => g.report_date.slice(0, 4));
+    if (q4years.length) {
+        lfyYear = q4years.sort().pop();
+        lfy = round5(groups.filter(g => g.report_date.slice(0, 4) === lfyYear)
+            .reduce((s, g) => s + g.sum, 0));
+    }
+
+    // 下期预测：每个贡献类别 = 上一次实际除息日按【年】推进到今天之后，金额沿用该类别最近一次
+    // （旧版按"历史除息月份模板"取，遇到今年除息日提前会造出幻影——平安曾预测
+    //   2026-10 再派 0.95，而该报告期的 0.98 已在 9/10 除息实施）
+    const cands = [];
+    for (const a of contributors) {
+        const d = parseDate(a.last.ex_dates[a.last.ex_dates.length - 1]);
+        if (!d) continue;
+        const nd = nextOccurrence(d, (x) => { const y = new Date(x); y.setFullYear(y.getFullYear() + 1); return y; }, today, 6);
+        if (nd) cands.push({ date: nd, amount: a.last.sum });
+    }
+    cands.sort((a, b) => a.date - b.date);
+
+    return {
+        method: 'report',
+        forward, special, lfy, lfyYear, groups,
+        frequency: classifyFrequencyByPeriods(contributors.length),
+        next: cands.length ? [cands[0].date, cands[0].amount] : null,
+        // 进了前瞻分子的具体除息日（明细面板据此打标记，让用户看清"哪几笔算进去了"）
+        forwardExDates: contributors.reduce((acc, a) => acc.concat(a.last.ex_dates), []),
+        periodDesc: contributors.map(a => {
+            const ex = a.last.ex_dates[a.last.ex_dates.length - 1];
+            return `${a.last.report_date.slice(0, 4)}年${quarterName(a.quarter)} ${a.last.sum.toFixed(4)} 元/股（除息 ${ex}）`;
+        })
+    };
+}
+
+// 基金/ETF 口径：节律法（也用于股票降级兜底）
+function analyzeByRhythm(records, today) {
+    const recs = records.filter(r => r.ex_date && r.per_share > 0)
+        .sort((a, b) => a.ex_date.localeCompare(b.ex_date));
+    if (!recs.length) return null;
+
+    const recent = recs.slice(-25);
+    const intervals = [];
+    for (let i = 0; i < recent.length - 1; i++) {
+        const a = parseDate(recent[i].ex_date), b = parseDate(recent[i + 1].ex_date);
+        if (a && b) intervals.push(dateDiffInDays(a, b));
+    }
+    let median = 365;
+    if (intervals.length) median = medianOf(intervals.slice().sort((a, b) => a - b));
+    let n = median > 0 ? Math.round(365 / median) : 1;
+    n = Math.max(1, Math.min(12, n));
+
+    const picked = recs.slice(-n);
+    const sum = round5(picked.reduce((s, r) => s + r.per_share, 0));
+    const last = recs[recs.length - 1];
+    // 历史期数少于推断的 N 期（新成立/刚分红的基金）→ 不做年化外推，如实标注可能低估
+    const insufficient = picked.length < n;
+
+    // 一次性异常期（保守，仅标注不剔除）：最近一期 ≥ 之前各期中位数的 2 倍
+    let special = 0;
+    if (picked.length >= 3) {
+        const prev = recs.slice(-n - 3, -1).map(r => r.per_share);
+        if (prev.length >= 3) {
+            const med = medianOf(prev.slice().sort((a, b) => a - b));
+            if (med > 0 && last.per_share >= med * 2) special = last.per_share;
+        }
+    }
+
+    let next = null;
+    const lastDate = parseDate(last.ex_date);
+    if (lastDate) {
+        const step = Math.max(1, Math.round(median));
+        const nd = nextOccurrence(lastDate, (x) => new Date(x.getTime() + step * 86400000), today, 12);
+        if (nd) next = [nd, last.per_share];
+    }
+
+    return {
+        method: 'rhythm',
+        forward: sum, special, lfy: null, lfyYear: null, groups: [],
+        frequency: classifyFrequencyByCount(n),
+        next,
+        insufficient,
+        forwardExDates: picked.map(r => r.ex_date),
+        periodDesc: [`按发放节律推断一年约 ${n} 期（相邻除息间隔中位数 ${Math.round(median)} 天），取最近 ${picked.length} 期合计`
+            + (insufficient ? `（历史仅 ${picked.length} 期，不足推断期数，可能低估）` : '')]
+    };
+}
+
+function classifyFrequencyByPeriods(n) {
+    if (n <= 0) return '无分红';
+    if (n === 1) return '每年';
+    if (n === 2) return '每半年';
+    if (n === 3) return '约每4个月';
+    return '每季度';
+}
+
 function classifyFrequencyByCount(n12) {
     if (n12 <= 0) return '无分红';
     if (n12 >= 11) return '每月';
@@ -1607,87 +1864,113 @@ function classifyFrequencyByCount(n12) {
     return '不定期';
 }
 
-function analyzeDividends(records, today) {
+// 股票降级兜底：最近一个「完整自然年」（按除息日）的合计。
+// 用于拿不到报告期的退化情形（例如后端未升级、或新数据源临时不可用）。
+// 为什么不用节律法兜底：股票一年 2 期的相邻间隔是"短/长交替"的（如平安 92/229 天），
+//   中位数推期数会被带偏——实测把中国电信算成 0.5253（应为 0.2514，偏差 +109%）。
+//   按完整自然年合计则稳定得多：实测 7 只持仓最大偏差约 23%（伊利，因派息跨年错位），
+//   多数 < 10%，且天然是"后视口径"，只会偏保守不会虚高。
+function analyzeByCalendarYear(records, today) {
+    const recs = records.filter(r => r.ex_date && r.per_share > 0)
+        .sort((a, b) => a.ex_date.localeCompare(b.ex_date));
+    if (!recs.length) return null;
+
+    const thisYear = today.getFullYear();
+    for (let y = thisYear - 1; y >= thisYear - 3; y--) {
+        const picked = recs.filter(r => Number(r.ex_date.slice(0, 4)) === y);
+        if (!picked.length) continue;
+        const sum = round5(picked.reduce((s, r) => s + r.per_share, 0));
+        const last = picked[picked.length - 1];
+        const d = parseDate(last.ex_date);
+        const nd = d ? nextOccurrence(d, (x) => { const n = new Date(x); n.setFullYear(n.getFullYear() + 1); return n; }, today, 4) : null;
+        return {
+            method: 'calyear',
+            forward: sum, special: 0, lfy: sum, lfyYear: String(y), groups: [],
+            frequency: classifyFrequencyByCount(picked.length),
+            next: nd ? [nd, last.per_share] : null,
+            degraded: true,
+            forwardExDates: picked.map(r => r.ex_date),
+            periodDesc: [`数据源未提供报告期 → 降级为后视口径：最近一个完整自然年 ${y} 年按除息日合计（共 ${picked.length} 期）`]
+        };
+    }
+    return null;
+}
+
+function analyzeDividends(records, today, isFund) {
     const analysis = {
         count: records.length, frequency: '无分红', ttm_per_share: 0.0, ttm_count: 0,
-        latest: null, next_est: null, next_announced: false, est_annual_per_share: 0.0, annual_totals: {}
+        latest: null, next_est: null, next_announced: false, est_annual_per_share: 0.0, annual_totals: {},
+        // 新增：双口径 + 一次性分红 + 方法标记 + 低置信护栏
+        method: 'none', forward_per_share: 0.0, lfy_per_share: null, lfy_year: null,
+        special_per_share: 0.0, period_desc: [], low_confidence: false, forward_ex_dates: [],
+        insufficient_history: false, degraded: false
     };
     if (!records.length) return analysis;
 
-    const cutoff = new Date(today);
+    // 近 12 个月到账：左开右闭（> 一年前当天 且 ≤ 今天）
+    // 旧版是双闭区间（>= cutoff && <= today），月频标的必然多塞一期——513530 的根因
+    const cutoff = new Date(today.getTime());
     cutoff.setFullYear(cutoff.getFullYear() - 1);
-    cutoff.setHours(0,0,0,0);
     let ttmSum = 0, ttmN = 0;
     for (const r of records) {
         const d = parseDate(r.ex_date);
-        if (d && d >= cutoff && d <= today) {
-            ttmSum += r.per_share;
-            ttmN++;
-        }
-        const y = r.year || r.ex_date.substring(0,4);
-        if (!analysis.annual_totals[y]) analysis.annual_totals[y] = 0;
-        analysis.annual_totals[y] = Math.round((analysis.annual_totals[y] + r.per_share) * 100000) / 100000;
+        if (d && d > cutoff && d <= today) { ttmSum += r.per_share; ttmN++; }
     }
-    analysis.ttm_per_share = Math.round(ttmSum * 100000) / 100000;
+    analysis.ttm_per_share = round5(ttmSum);
     analysis.ttm_count = ttmN;
 
-    if (analysis.ttm_per_share > 0) {
-        analysis.est_annual_per_share = analysis.ttm_per_share;
-    } else if (Object.keys(analysis.annual_totals).length) {
-        const years = Object.keys(analysis.annual_totals).sort();
-        analysis.est_annual_per_share = analysis.annual_totals[years[years.length-1]];
-    } else {
-        analysis.est_annual_per_share = records[records.length-1].per_share;
+    // 按【报告期年份】归组（旧版按"除息年"分组会串年：平安 2025-06-30 派的那 1.62
+    // 其实是 2024 年报末期，被算进了 2025 年）
+    for (const r of records) {
+        const key = r.report_date ? r.report_date.slice(0, 4) : (r.year || r.ex_date.slice(0, 4));
+        analysis.annual_totals[key] = round5((analysis.annual_totals[key] || 0) + r.per_share);
     }
 
-    analysis.latest = records[records.length-1];
-    if (analysis.ttm_count >= 1) {
-        analysis.frequency = classifyFrequencyByCount(analysis.ttm_count);
-    } else {
-        const dates = records.map(r => parseDate(r.ex_date)).filter(d => d);
-        if (dates.length >= 2) {
-            const intervals = [];
-            for (let i = 0; i < dates.length - 1; i++) intervals.push(dateDiffInDays(dates[i], dates[i+1]));
-            intervals.sort((a,b)=>a-b);
-            const median = intervals[Math.floor(intervals.length/2)];
-            analysis.frequency = median > 200 ? '每年' : (median > 75 ? '每半年' : '不定期');
-        }
+    // 主算法：股票（有报告期）走报告期配对法；无报告期时股票走"完整自然年"后视兜底，
+    // 基金/ETF（无财报报告期概念）走节律法
+    let main = null;
+    if (records.some(r => r.report_date)) main = analyzeByReportPeriod(records, today);
+    if (!main) {
+        main = isFund
+            ? analyzeByRhythm(records, today)
+            : (analyzeByCalendarYear(records, today) || analyzeByRhythm(records, today));
     }
 
+    analysis.latest = records[records.length - 1];
+
+    if (!main) {
+        analysis.est_annual_per_share = analysis.latest.per_share;
+        analysis.forward_per_share = analysis.est_annual_per_share;
+        return analysis;
+    }
+
+    analysis.method = main.method;
+    analysis.est_annual_per_share = main.forward;
+    analysis.forward_per_share = main.forward;
+    analysis.lfy_per_share = main.lfy;
+    analysis.lfy_year = main.lfyYear;
+    analysis.special_per_share = main.special;
+    analysis.period_desc = main.periodDesc || [];
+    analysis.forward_ex_dates = main.forwardExDates || [];
+    analysis.insufficient_history = !!main.insufficient;
+    analysis.degraded = !!main.degraded;
+    analysis.frequency = main.frequency;
+
+    // 护栏：前瞻与"上年实际"偏差 > 30% → 标记低置信（派息政策变更 / 口径异常时提示）
+    if (main.lfy && main.lfy > 0) {
+        if (Math.abs(main.forward - main.lfy) / main.lfy > 0.3) analysis.low_confidence = true;
+    }
+    if (analysis.insufficient_history || analysis.degraded) analysis.low_confidence = true;
+
+    // 下期预测：已公告（除息日在今天之后）优先，否则用报告期感知的推算
     const upcoming = records.filter(r => { const d = parseDate(r.ex_date); return d && d > today; });
     if (upcoming.length) {
-        upcoming.sort((a,b) => parseDate(a.ex_date) - parseDate(b.ex_date));
+        upcoming.sort((a, b) => parseDate(a.ex_date) - parseDate(b.ex_date));
         const u = upcoming[0];
         analysis.next_est = [parseDate(u.ex_date), u.per_share];
         analysis.next_announced = true;
-    } else {
-        const twoYearsAgo = new Date(today);
-        twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-        const recent2y = records.filter(r => { const d = parseDate(r.ex_date); return d && d >= twoYearsAgo; });
-        const pool = recent2y.length ? recent2y : records;
-        const lastDate = parseDate(records[records.length-1].ex_date);
-        const months = [];
-        for (const r of pool) {
-            const d = parseDate(r.ex_date);
-            if (d && !months.includes(d.getMonth()+1)) months.push(d.getMonth()+1);
-        }
-        months.sort((a,b)=>a-b);
-        const candidates = [];
-        if (lastDate && months.length) {
-            for (const mo of months) {
-                let d = new Date(lastDate);
-                d.setDate(1); d.setMonth(mo-1);
-                if (d <= lastDate) d.setFullYear(d.getFullYear()+1);
-                candidates.push(d);
-            }
-        }
-        if (candidates.length) {
-            candidates.sort((a,b)=>a-b);
-            const nd = candidates[0];
-            const sameMonth = records.filter(r => { const d = parseDate(r.ex_date); return d && d.getMonth() === nd.getMonth(); });
-            let amt = sameMonth.length ? sameMonth[sameMonth.length-1].per_share : pool.slice(-3).map(r => r.per_share).sort((a,b)=>a-b)[0];
-            analysis.next_est = [nd, Math.round((amt || 0) * 100000) / 100000];
-        }
+    } else if (main.next) {
+        analysis.next_est = main.next;
     }
     return analysis;
 }
@@ -1699,7 +1982,7 @@ async function buildRows(holdings, quotes, dividendsMap, today) {
         const code = h.code;
         const [typ] = classifyCode(code);
         const recs = dividendsMap[code] || [];
-        const analysis = analyzeDividends(recs, today);
+        const analysis = analyzeDividends(recs, today, typ === 'fund');
         const quote = quotes[code] || {};
         const price = quote.price || null;
         const shares = h.shares || 0;
@@ -1718,9 +2001,20 @@ async function buildRows(holdings, quotes, dividendsMap, today) {
         const costTotal = cost !== null ? Math.round(cost * shares * 100) / 100 : null;
         const capitalEmployed = cost !== null ? Math.round(Math.max(cost, 0) * shares * 100) / 100 : 0;
 
+        // 副口径分子（用于卡片/表格的第二行小字）：
+        //   股票 = 上年实际（最近一个含年报的完整报告年度合计，100% 已发生）
+        //   基金 = 近 12 个月到账（ETF 无"财年"概念）
+        const est2 = (analysis.lfy_per_share !== null && analysis.lfy_per_share > 0)
+            ? analysis.lfy_per_share
+            : (analysis.ttm_per_share > 0 ? analysis.ttm_per_share : null);
+        const secondaryLabel = (analysis.lfy_per_share !== null && analysis.lfy_per_share > 0) ? '上年实际' : '近12月';
+
         let yieldCost = (cost !== null && cost > 0 && est) ? (est / cost * 100) : null;
         const yieldPrice = (price && est) ? (est / price * 100) : null;
+        const yieldCost2 = (cost !== null && cost > 0 && est2) ? (est2 / cost * 100) : null;
+        const yieldPrice2 = (price && est2) ? (est2 / price * 100) : null;
         const income = Math.round(est * shares * 100) / 100;
+        const income2 = est2 !== null ? Math.round(est2 * shares * 100) / 100 : 0;
 
         // 持仓天数初始为 null（绝对不显示），由 applyTradeCal 在交易日历就绪后异步填充
         let holdDays = null;
@@ -1728,6 +2022,7 @@ async function buildRows(holdings, quotes, dividendsMap, today) {
         rows.push({
             code, name: quote.name || h.name || '', type: typ, price, pct, cost, shares, mv,
             costTotal, capitalEmployed, freq: analysis.frequency, yieldCost, yieldPrice,
+            yieldCost2, yieldPrice2, estAnnual2: est2, income2, secondaryLabel,
             estAnnual: est, income, next: analysis.next_est, nextAnnounced: analysis.next_announced,
             holdDays, records: recs, analysis
         });
@@ -1762,6 +2057,17 @@ function fmtYieldCost(row) {
     if (row.yieldCost !== null) return row.yieldCost.toFixed(3) + '%';
     if (row.cost !== null && row.cost <= 0) return '已回本∞';
     return '--';
+}
+
+// 生成"主数字（前瞻口径）+ 副行小字（上年实际 / 近12月）"的股息率单元格
+// 不新增列：纵向叠放在同一格内，保持表格宽度不变（手机上不用更用力左右滑）
+function fmtYieldCell(mainText, subVal, subLabel) {
+    const mainHtml = `<span class="yield-main">${escapeHtml(mainText)}</span>`;
+    if (subVal === null || subVal === undefined || isNaN(subVal)) {
+        return `<div class="yield-cell">${mainHtml}</div>`;
+    }
+    return `<div class="yield-cell">${mainHtml}<span class="yield-sub">`
+        + `<span class="sub-label">${escapeHtml(subLabel)}</span> ${subVal.toFixed(3)}%</span></div>`;
 }
 
 // ================== 自定义列与排序Modal交互 ==================
@@ -1893,8 +2199,17 @@ function renderCards(rows) {
     const yc = totalInvested ? (totalIncome / totalInvested * 100) : null;
     const ycStr = yc ? yc.toFixed(3) + '%' : '--';
 
+    // 副口径（已实现）：股票用"上年实际"分子、基金用"近 12 个月到账"分子
+    // 与主口径（前瞻）并列展示——两者之差就是末期分红的同比增速
+    const totalIncome2 = rows.reduce((sum, r) => sum + (r.income2 || 0), 0);
+    const yc2 = totalInvested ? (totalIncome2 / totalInvested * 100) : null;
+    const yc2Str = yc2 ? yc2.toFixed(3) + '%' : '--';
+
     const yp = totalMv > 0 ? (totalIncome / totalMv * 100) : null;
     const ypStr = yp ? yp.toFixed(3) + '%' : '--';
+
+    const yp2 = totalMv > 0 ? (totalIncome2 / totalMv * 100) : null;
+    const yp2Str = yp2 ? yp2.toFixed(3) + '%' : '--';
 
     const monthlyAvg = totalIncome / 12;
 
@@ -1912,6 +2227,7 @@ function renderCards(rows) {
         <div class="label">全年总分红 (约)</div>
         <div class="value gold">¥${totalIncome.toFixed(2)}</div>
         <div class="card-subtext">下期预测合计: ¥${totalNextIncome.toFixed(2)}</div>
+        <div class="card-subtext">已实现口径: ¥${totalIncome2.toFixed(2)}</div>
       </div>
       <div class="card">
         <div class="label">月均分红 (约)</div>
@@ -1920,11 +2236,13 @@ function renderCards(rows) {
       <div class="card">
         <div class="label">整体成本股息率</div>
         <div class="value hl">${ycStr}</div>
+        <div class="card-subtext">前瞻 · 已实现 ${yc2Str}</div>
         <div class="card-subtext">基于历史买入成本</div>
       </div>
       <div class="card">
         <div class="label">组合动态股息率</div>
         <div class="value hl">${ypStr}</div>
+        <div class="card-subtext">前瞻 · 已实现 ${yp2Str}</div>
         <div class="card-subtext">基于最新市场价格</div>
       </div>
     `;
@@ -2154,7 +2472,7 @@ function renderTable(rows) {
                     } else {
                         if (r.yieldCost !== null && r.yieldCost > 5) cls.push('hl');
                         if (r.yieldCost === null && r.cost !== null && r.cost <= 0) cls.push('paid');
-                        content = fmtYieldCost(r);
+                        content = fmtYieldCell(fmtYieldCost(r), r.yieldCost2, r.secondaryLabel);
                     }
                     break;
                 case 'yieldPrice':
@@ -2162,7 +2480,8 @@ function renderTable(rows) {
                         content = '无分红';
                         cls.push('zero');
                     } else {
-                        content = r.yieldPrice !== null ? r.yieldPrice.toFixed(3) + '%' : '--';
+                        const ypMain = r.yieldPrice !== null ? r.yieldPrice.toFixed(3) + '%' : '--';
+                        content = fmtYieldCell(ypMain, r.yieldPrice2, r.secondaryLabel);
                     }
                     break;
                 case 'next':
@@ -2242,29 +2561,78 @@ function getSubTagHtml(r) {
     }
 }
 
+// 分红明细·口径小结：把三个口径并列写清"分别是哪几笔加起来"
+function buildPeriodSummary(r) {
+    const a = r.analysis;
+    if (!a || a.method === 'none' || !r.records || !r.records.length) return '';
+    const price = r.price;
+    const pctOf = (v) => (price && v) ? `（现价 ${(v / price * 100).toFixed(3)}%）` : '';
+    const items = [];
+
+    // ① 前瞻（主口径）
+    const detail = a.method === 'report'
+        ? `${(a.period_desc || []).join(' ＋ ')}`
+        : `${(a.period_desc || [])[0] || ''}`;
+    items.push(`<b>前瞻口径（当前显示值）</b>：${a.forward_per_share.toFixed(4)} 元/股${pctOf(a.forward_per_share)}`
+        + (detail ? ` ＝ ${detail}` : ''));
+
+    // ② 上年实际（仅股票，有完整报告年度时）
+    if (a.lfy_per_share !== null && a.lfy_per_share > 0) {
+        items.push(`<b>上年实际</b>：${a.lfy_per_share.toFixed(4)} 元/股${pctOf(a.lfy_per_share)}`
+            + ` ＝ ${a.lfy_year} 报告年度合计（100% 已发生，可作对照）`);
+    }
+
+    // ③ 近 12 个月到账（真实现金进账）
+    if (a.ttm_per_share > 0) {
+        items.push(`<b>近 12 个月到账</b>：${a.ttm_per_share.toFixed(4)} 元/股${pctOf(a.ttm_per_share)}`
+            + `（过去 365 天实际除息共 ${a.ttm_count} 期；与前瞻不等是正常的——窗口里可能跨了两个年度）`);
+    }
+
+    if (a.special_per_share > 0) {
+        items.push(`<span style="color:var(--gold);">检测到疑似一次性分红 ${a.special_per_share.toFixed(4)} 元/股，已从前瞻口径中剔除</span>`);
+    }
+    if (a.degraded) {
+        items.push(`<span style="color:var(--gold);">数据源未提供"报告期"，已降级为"最近一个完整自然年"的后视口径，与前瞻口径有偏差</span>`);
+    }
+    if (a.insufficient_history) {
+        items.push(`<span style="color:var(--gold);">历史派息记录不足推断的一年期数，前瞻口径可能低估</span>`);
+    }
+    if (a.low_confidence && !a.insufficient_history && !a.degraded) {
+        items.push(`<span style="color:var(--gold);">前瞻与上年实际偏差超过 30%，请留意是否有派息政策变更</span>`);
+    }
+
+    return `<div class="period-summary">${items.map(t => `<div>· ${t}</div>`).join('')}</div>`;
+}
+
 function renderDetail(rows) {
     const container = document.getElementById('detailContainer');
     if (!detailVisible) { container.innerHTML = ''; return; }
     let html = '';
     for (const r of rows) {
         if (!r.records || !r.records.length) continue;
+        const fwdSet = new Set(r.analysis && r.analysis.forward_ex_dates ? r.analysis.forward_ex_dates : []);
         let its = '';
         for (const rec of r.records) {
-            its += `<tr>
+            const used = fwdSet.has(rec.ex_date);
+            const mark = used ? '<span class="fwd-mark" title="已计入前瞻口径">●</span>' : '';
+            its += `<tr${used ? ' class="row-fwd"' : ''}>
                 <td style='text-align:left;'>${escapeHtml(rec.ex_date)}</td>
+                <td style='text-align:left;'>${escapeHtml(rec.report_date || '—')}</td>
                 <td style='text-align:right;'>${rec.per_share.toFixed(4)}</td>
-                <td style='text-align:left;'>${escapeHtml(rec.note || '')}</td>
+                <td style='text-align:left;'>${mark} ${escapeHtml(rec.note || '')}</td>
             </tr>`;
         }
         html += `<h2 class='section-title'>${escapeHtml(r.code)} ${escapeHtml(r.name)} 历次派息记录</h2>
+            ${buildPeriodSummary(r)}
             <div style="overflow-x: auto;">
               <table class='detail-table'>
                   <thead>
-                    <tr><th style='text-align:left;'>除息日</th><th style='text-align:right;'>每股派息(元)</th><th style='text-align:left;'>分红方案</th></tr>
+                    <tr><th style='text-align:left;'>除息日</th><th style='text-align:left;'>报告期</th><th style='text-align:right;'>每股派息(元)</th><th style='text-align:left;'>分红方案</th></tr>
                   </thead>
                   <tbody>${its}</tbody>
               </table>
-            </div>`;
+            </div>
+            <div style="font-size:11px; color:var(--text-secondary); margin:-8px 0 6px;">● = 已计入前瞻口径；报告期为"—"表示该数据源未提供（基金/ETF 无财报报告期概念）</div>`;
     }
     container.innerHTML = html || '<p style="color:#94a3b8; font-size:13px; padding:10px 0;">暂无详细派息数据</p>';
 }
@@ -2274,10 +2642,25 @@ function renderAll(rows, today, timeStr) {
     const totalIncome = rows.reduce((sum, r) => sum + r.income, 0);
     const monthlyAvg = totalIncome / 12;
     renderCards(rows);
+    renderStaleWarn(rows);
     renderTable(rows);
     renderLadder(monthlyAvg, rows);
     renderDetail(rows);
     document.getElementById('dataTimeText').textContent = timeStr || `数据更新于 ${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+}
+
+// 数据源降级警示：股票的股息率拿不到"报告期"时只能退化成后视口径，
+// 数值会与前瞻口径（同花顺口径）有偏差，必须显式告知用户，绝不静默出错。
+function renderStaleWarn(rows) {
+    const el = document.getElementById('staleWarnBanner');
+    if (!el) return;
+    const bad = rows.filter(r => r.analysis && r.analysis.degraded);
+    if (!bad.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    const list = bad.map(r => `${escapeHtml(r.code)} ${escapeHtml(r.name)}`).join('、');
+    el.style.display = 'block';
+    el.innerHTML = `⚠️ <b>数据源未提供"报告期"字段</b>，以下股票的股息率已降级为「最近一个完整自然年按除息日合计」的后视口径，`
+        + `与前瞻口径（同花顺口径）存在偏差：<b>${list}</b>。<br>`
+        + `常见原因：后端 Worker 尚未升级到新版 <code>index.js</code>。请部署后端后刷新页面（本页分红缓存已升级为 v3，会自动重拉）。`;
 }
 
 // ================== 持仓天数徽章（异步填充） ==================
@@ -2743,10 +3126,13 @@ function buildCopyText(rows) {
     const totalBookCost = rows.reduce((sum, r) => sum + (r.costTotal !== null ? r.costTotal : 0), 0);
     const totalInvested = rows.reduce((sum, r) => sum + r.capitalEmployed, 0);
     const totalIncome = rows.reduce((sum, r) => sum + r.income, 0);
+    const totalIncome2 = rows.reduce((sum, r) => sum + (r.income2 || 0), 0);
     const totalMv = rows.reduce((sum, r) => sum + (r.mv !== null ? r.mv : 0), 0);
     const monthlyAvg = totalIncome / 12;
     const yc = totalInvested ? (totalIncome / totalInvested * 100) : null;
     const yp = totalMv > 0 ? (totalIncome / totalMv * 100) : null;
+    const yc2 = totalInvested ? (totalIncome2 / totalInvested * 100) : null;
+    const yp2 = totalMv > 0 ? (totalIncome2 / totalMv * 100) : null;
 
     const L = [];
     L.push('YieldCraft 息流 · 持仓快照');
@@ -2756,13 +3142,16 @@ function buildCopyText(rows) {
     L.push('【概览】');
     L.push('总市值\t¥' + totalMv.toFixed(2));
     L.push('投入本金\t¥' + totalInvested.toFixed(2));
-    L.push('全年总分红(约)\t¥' + totalIncome.toFixed(2));
+    L.push('全年总分红(约·前瞻)\t¥' + totalIncome.toFixed(2));
+    L.push('全年总分红·已实现\t¥' + totalIncome2.toFixed(2));
     L.push('月均分红(约)\t¥' + monthlyAvg.toFixed(2));
-    L.push('整体成本股息率\t' + (yc ? yc.toFixed(3) + '%' : '--'));
-    L.push('组合动态股息率\t' + (yp ? yp.toFixed(3) + '%' : '--'));
+    L.push('整体成本股息率(前瞻)\t' + (yc ? yc.toFixed(3) + '%' : '--'));
+    L.push('整体成本股息率·已实现\t' + (yc2 ? yc2.toFixed(3) + '%' : '--'));
+    L.push('组合动态股息率(前瞻)\t' + (yp ? yp.toFixed(3) + '%' : '--'));
+    L.push('组合动态股息率·已实现\t' + (yp2 ? yp2.toFixed(3) + '%' : '--'));
     L.push('');
     L.push('【持仓明细】');
-    L.push('代码\t名称\t成本股息率\t现价股息率\t下期预测\t年度分红\t分红频率\t成本\t数量\t现价\t今日涨跌');
+    L.push('代码\t名称\t成本股息率\t现价股息率\t现价股息率·已实现\t下期预测\t年度分红\t分红频率\t成本\t数量\t现价\t今日涨跌');
 
     for (const r of rows) {
         const isWatch = r.shares === 0;
@@ -2774,6 +3163,8 @@ function buildCopyText(rows) {
             : (r.freq === '无分红' ? '无分红'
                 : (r.yieldCost !== null ? r.yieldCost.toFixed(3) + '%' : (r.cost !== null && r.cost <= 0 ? '已回本∞' : '--')));
         const yieldPrice = r.freq === '无分红' ? '无分红' : (r.yieldPrice !== null ? r.yieldPrice.toFixed(3) + '%' : '--');
+        const yieldPrice2 = r.freq === '无分红' ? '无分红'
+            : (r.yieldPrice2 !== null && r.yieldPrice2 !== undefined ? r.yieldPrice2.toFixed(3) + '%' : '--');
 
         let next;
         if (r.freq === '无分红') {
@@ -2794,8 +3185,12 @@ function buildCopyText(rows) {
         const price = r.price !== null ? r.price.toFixed(3) : '--';
         const pct = r.pct !== null ? (r.pct >= 0 ? '+' : '') + r.pct.toFixed(3) + '%' : '--';
 
-        L.push([r.code, r.name, yieldCost, yieldPrice, next, income, r.freq, cost, shares, price, pct].join('\t'));
+        L.push([r.code, r.name, yieldCost, yieldPrice, yieldPrice2, next, income, r.freq, cost, shares, price, pct].join('\t'));
     }
+    L.push('');
+    L.push('注：① 前瞻口径 = 最近一份年报 + 最近一份中报/季报（与同花顺口径一致），含预估成分；');
+    L.push('    ② 已实现口径 = 股票取最近一个完整报告年度实际派息、ETF 取近 12 个月实际到账，100% 已发生；');
+    L.push('    ③ 两者之差 ≈ 末期分红的同比增速；金额均为税前，A股持股不满 1 年需扣红利税。');
     return L.join('\n');
 }
 
