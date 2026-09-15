@@ -15,6 +15,7 @@
     --card-bg: #ffffff;
     --text-primary: #0f172a;
     --text-secondary: #64748b;
+    --text-tertiary: #94a3b8;
     --border-color: #e2e8f0;
     --red: #dc2626;
     --green: #16a34a;
@@ -253,7 +254,21 @@
   .status-text.offline { color: var(--red); font-weight: 600; }
 
   /* 概览卡片 */
-  .cards { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+  .cards { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; align-items: stretch; }
+  /* ---------------- 卡片底部区（虚线对齐的关键）----------------
+     现象：带虚线的三张卡（总市值 / 投入本金 / 预计派息），三条虚线不在同一水平线上。
+     原因：虚线过去只靠自己 margin-top:auto 贴到卡底，而虚线【下方】的内容高度不等：
+             · 总市值 / 投入本金 → 小节区块 ≈ 47px
+             · 预计派息          → 两行副口径，窄卡里标签会折行 ≈ 88px
+           虚线被不等高的内容顶到不同位置（实测 1384px 宽下三条虚线相差 40px）。
+     解法：把「虚线 + 它下方的内容」整体装进同一个容器 .card-bottom。
+           桌面端给容器固定 min-height：虚线固定在容器顶部、内容固定在容器底部，
+           容器等高 → 三条虚线必然落在同一条水平线上，且内容依旧贴着卡底。
+
+     93px 的推导（实测）：最高的底部内容 = 折行后的两行副口径 88px
+           + 虚线自身 1px + 与内容的 4px 间距 = 93px。
+     手机端（<769px）卡片变成 1~2 列，同排的卡底部形态本来就一致、虚线本来就齐，
+     所以那一档不加 min-height，保持「虚线紧贴内容」的原样。 */
   .card {
     background: var(--card-bg);
     border-radius: 10px;
@@ -262,16 +277,162 @@
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
     flex: 1;
     min-width: 180px;
+    display: flex;
+    flex-direction: column;
   }
-  .card .label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+  /* 底部区容器：margin-top:auto 吸收剩余高度差，把「虚线 + 底部内容」整体推到卡底 */
+  .card .card-bottom { margin-top: auto; }
+  /* 虚线：容器内的分隔线。手机端（块级排版）时它下面紧跟内容；
+     桌面端的等高对齐见文件后面 min-width:769px 那段 @media */
+  .card .card-bottom .card-divider {
+    border-top: 1px dashed var(--border-color);
+    margin: 0 0 4px;
+  }
+  /* 底部小节紧跟虚线（虚线自身已有 4px 下边距） */
+  .card .card-block { margin-top: 0; }
+  @media screen and (min-width: 769px) {
+    /* 桌面端：底部区等高 + 上下分置 → 多卡虚线自动落在同一条水平线 */
+    .card .card-bottom {
+      min-height: 93px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;   /* 虚线贴顶、内容贴底 */
+    }
+  }
+  /* 卡片标题：放大到 14px 并加粗到 600，让"这张卡在讲什么"先声夺人 */
+  .card .label {
+    font-size: 14px; color: var(--text-primary); font-weight: 600;
+    letter-spacing: -0.1px;
+  }
   .card .value { font-size: 24px; font-weight: 700; margin-top: 4px; color: var(--text-primary); letter-spacing: -0.5px; }
   .card .value.hl { color: var(--red); }
   .card .value.gold { color: var(--gold); }
   .card .card-subtext { font-size: 12px; margin-top: 4px; color: var(--text-secondary); }
   .card .card-subtext.pos { color: var(--red); font-weight: 600; }
   .card .card-subtext.neg { color: var(--green); font-weight: 600; }
+  /* 副口径（去年实际派息）与主口径有差异时才出现 → 金色高亮，提示"这里和预计不一样" */
+  .card .card-subtext.sub-diff { color: var(--gold); font-weight: 600; }
 
-  /* 股息率单元格：主数字（前瞻口径）+ 副行小字（上年实际 / 近12月），不新增列 */
+  /* ---------------- 分红卡三级字号体系 ----------------
+     一级：¥1283.56  28px 金色（.card .value 的 .value-main）
+     二级：¥1287.68  16px 半粗（.sub-num）
+     三级：说明文字   11px 灰（.sub-note / .card-note）
+     目的：数字从文字里浮出来，时间/口径说明退成注脚。 */
+  .card .value.value-main { font-size: 28px; }
+  .card .card-note {
+    font-size: 11px; line-height: 1.5; color: var(--text-tertiary);
+    margin-top: 1px;
+  }
+  .card .card-sub-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 8px; margin-top: 5px;
+  }
+  .card .card-sub-row .sub-label {
+    font-size: 11px; color: var(--text-tertiary); flex: 1 1 auto; min-width: 0;
+  }
+  .card .sub-num { font-size: 16px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+  /* 有差异的副口径数字：金色（沿用 sub-diff 语义），并让"去年实际"标签也提亮一档 */
+  .card .card-sub-row.is-diff .sub-label { color: var(--text-secondary); }
+  .card .card-sub-row.is-diff .sub-num { color: var(--gold); }
+  /* 主数字与副数之间的细分隔线（方案 C）—— 基础样式见上方卡片网格对齐段落，
+     那里额外固定了高度与 align-self 以保证多卡虚线对齐，此处不再重复定义。 */
+  /* 副行尾随的灰色半透明小字注脚：说明"这个数字指的是哪段区间/什么状态"，
+     刻意比 .sub-label（11px 灰）再弱一档，不与数字争视觉焦点。 */
+  .card .card-sub-row .sub-note {
+    font-size: 10px; color: var(--text-tertiary); opacity: .72;
+    margin-left: 4px; white-space: nowrap;
+  }
+  .card .card-sub-row.is-diff .sub-note { opacity: .85; }
+
+  /* ---------------- 卡片内「小节」区块（闲置现金 / 全仓浮动盈亏）----------------
+     与卡片主标题同级（14px 加粗），但数字收到 18px —— 标题一眼看齐、高度不失控。
+     结构：小节标题 14px → 数字 18px，上下两行。 */
+  .card .card-block { margin-top: 0; }
+  /* 小节标题 + 尾随灰字：用 flex 排，标题行【永不折行】。
+     折行会把这一行顶高 18px，从而把上方虚线一起顶歪（360px 窄屏上会真的发生）。
+     做法：标题不缩、灰字可缩且超长时省略号截断，行高恒定 → 虚线位置恒定。 */
+  .card .card-block .block-label {
+    display: flex; align-items: baseline;
+    font-size: 14px; font-weight: 600; color: var(--text-primary);
+    letter-spacing: -0.1px; line-height: 1.3;
+  }
+  .card .card-block .block-label .block-text { flex: 0 0 auto; white-space: nowrap; }
+  .card .card-block .block-value {
+    font-size: 18px; font-weight: 600; color: var(--text-secondary);
+    margin-top: 2px; letter-spacing: -0.2px; white-space: nowrap;
+  }
+  .card .card-block .block-value.pos { color: var(--red); }
+  .card .card-block .block-value.neg { color: var(--green); }
+  /* 小节标题后面可跟一个极淡的单位/口径说明（窄屏放不下时省略号截断，不换行） */
+  .card .card-block .block-label .block-note {
+    flex: 0 1 auto; min-width: 0;
+    font-size: 10px; font-weight: 400; color: var(--text-tertiary);
+    opacity: .72; margin-left: 5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  /* ---------------- 卡片内「点数字直接改」（闲置现金）----------------
+     唯一的录入通道（原来卡片上方那条输入框已删除）：
+     点卡片里那行「闲置现金 ¥xxx」的数字，原地变输入框：
+       · 静息态与普通数字一致（无边框/无底色），靠标题后的灰字「点击可改」
+         + 一个极淡的「改」字提示这里能点，不破坏卡片观感
+       · 聚焦时才浮出一条蓝色下划线，表示"正在改"
+       · inputmode=decimal → 手机直接弹数字键盘
+       · blur / Enter 即落库（点哪里都算数，不用找"确定"按钮）
+       · Esc 放弃本轮修改，恢复原值
+     桌面端与手机端共用同一套逻辑；光标用 pointer 明确"这是可点的控件" */
+  .card .block-value.editable {
+    cursor: pointer;
+    border-radius: 4px;
+    /* 上下不留 padding：留了会让这行比同排「全仓浮动盈亏」那行高 2px，
+       手机端两卡并排时虚线就差 2px。左右留 4px 是为了点击高亮有边距 */
+    padding: 0 4px;
+    margin: 2px -4px 0;
+    transition: background .15s ease, box-shadow .15s ease;
+    -webkit-tap-highlight-color: transparent;   /* 去掉手机点击时的蓝框闪烁 */
+  }
+  .card .block-value.editable.editing { cursor: text; }
+  .card .block-value.editable:active { background: rgba(37, 99, 235, .07); }
+  .card .block-value.editable.editing {
+    background: #fff;
+    box-shadow: inset 0 -2px 0 0 var(--primary);
+    outline: none;
+  }
+  /* 编辑态露出的 input 要看起来就是那行数字本身。
+     注意 line-height 必须显式继承：font 简写会把行高重置成 normal，
+     否则点开编辑时这一行会瞬间"塌"几像素，卡片里的内容跟着抖动。 */
+  .card .block-value input {
+    font: inherit; line-height: inherit; color: inherit; background: transparent;
+    border: 0; padding: 0; margin: 0; width: 100%; min-width: 0;
+    outline: none; text-align: inherit; letter-spacing: inherit;
+    -webkit-appearance: none; appearance: none;
+  }
+  /* 抹掉浏览器给 number 输入框加的上下微调箭头 */
+  .card .block-value input::-webkit-outer-spin-button,
+  .card .block-value input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .card .block-value input[type=number] { -moz-appearance: textfield; }
+  /* 极淡的「改」字提示：鼠标悬停时加深（桌面端），触摸端常驻半亮（手机端没有 hover），
+     两次都只是"这里能点"的弱提示，绝不抢数字的视觉焦点 */
+  .card .block-value .edit-pen {
+    font-size: 10px; color: var(--primary); opacity: 0;
+    margin-left: 6px; vertical-align: 2px; transition: opacity .15s ease;
+    pointer-events: none;
+  }
+  @media (hover: hover) {
+    .card .block-value.editable:hover .edit-pen { opacity: .55; }
+  }
+  @media (hover: none) {
+    .card .block-value.editable .edit-pen { opacity: .45; }
+  }
+  .card .block-value.editable.editing .edit-pen { opacity: 0; }
+  /* 保存成功的瞬时反馈：数字闪一下蓝，确认"改进去了" */
+  @keyframes cashFlash {
+    0%   { background: rgba(37, 99, 235, .18); }
+    100% { background: transparent; }
+  }
+  .card .block-value.flash { animation: cashFlash .6s ease-out; }
+
+  /* 股息率单元格：主数字（预计派息）+ 副行小字（去年实际派息 / 近12个月派息），不新增列 */
   .yield-cell { display: flex; flex-direction: column; align-items: center; line-height: 1.25; }
   .yield-cell .yield-main { font-weight: 600; }
   .yield-cell .yield-sub {
@@ -944,6 +1105,10 @@
     </form>
   </div>
 
+  <!-- 闲置现金：账户层面概念，不属于任何标的。
+       录入入口只有一个 —— 上方「投入本金」卡片里的「闲置现金」那一行数字，点它就地改。
+       （原先这里还有一条独立输入框，与卡片内编辑重复，已删除，避免两个输入源互相覆盖） -->
+
   <!-- 持仓表格 -->
   <div id="staleWarnBanner" class="warn-banner" style="display:none;"></div>
   <div class="table-wrapper">
@@ -965,11 +1130,12 @@
       <div class="footer-section-title">📊 计算与数据说明</div>
       · <b>观察标的</b> = 持股数量为 0 的标的，仅用于监测现价与股息率，不参与组合市值、成本及动态股息率的汇总计算。<br>
       · <b>总市值</b> = 当前价 × 持股数；<b>总浮动盈亏</b> = 总市值 - 券商账面总成本（负成本计入）。<br>
-      · <b>股息率（双口径）</b>：主数字为<b>前瞻口径</b> —— 最近一份年报 + 最近一份中报/季报的<b>已实施</b>派息之和 ÷ 价格，含义是"未来一年预计能收到的现金"，与同花顺口径一致，但含预估成分；下方小字为<b>已实现口径</b> —— 股票取最近一个完整报告年度实际派息、ETF 取近 12 个月实际到账，均 ÷ 价格，100% 已发生。两者之差 ≈ 末期分红的同比增速。<br>
-      · <b>整体成本股息率</b> = 前瞻口径全年总分红 ÷ 投入本金总额；<b>组合动态股息率</b> = 前瞻口径全年总分红 ÷ 当前持仓总市值。<br>
-      · <b>全年总分红（约）</b> = 前瞻口径每股分红 × 持股数（按报告期配对估算）；<b>月均分红</b> = 全年总分红 ÷ 12。基金/ETF 没有财报报告期概念，改按"相邻除息日间隔中位数推算一年派 N 期、取最近 N 期之和"（月频 ETF → 12 期）。<br>
+      · <b>股息率（双口径）</b>：主数字为<b>预计派息</b> —— 最近一份年报 + 最近一份中报/季报的<b>已实施</b>派息之和 ÷ 价格，含义是"未来一年预计能收到的现金"，与同花顺口径一致，但含预估成分；下方小字为<b>去年实际派息</b> —— 股票取最近一个完整报告年度实际派息、ETF 取近 12 个月实际到账，均 ÷ 价格，100% 已发生。两者之差 ≈ 末期分红的同比增速。<br>
+      · <b>副行小字的显示规则</b>：只有当"去年实际派息"与"预计派息"的差值达到可辨程度（股息率 ≥ 0.05 个百分点、金额 ≥ 1 元）时才显示，并<b>以金色高亮</b>——平时两者一致就不重复占位，一旦公司调整派息就会自动出现提醒。ETF/基金无财报年度概念，小字标签为「近 12 个月派息」。<br>
+      · <b>整体成本股息率</b> = 预计派息口径全年总分红 ÷ 投入本金总额；<b>组合动态股息率</b> = 预计派息口径全年总分红 ÷ 当前持仓总市值。<br>
+      · <b>全年预计派息</b> = 预计派息口径每股分红 × 持股数（按报告期配对估算）；<b>月均分红</b> = 全年预计派息 ÷ 12。基金/ETF 没有财报报告期概念，改按"相邻除息日间隔中位数推算一年派 N 期、取最近 N 期之和"（月频 ETF → 12 期）。<br>
       · <b>下期预测</b> = 按报告期推算：同一报告期上一轮除息日 + 1 年；已公告的显示具体日期并标注「已公告」，未公告的仅显示预估年月。<br>
-      · <b>一次性分红识别</b> = 某报告期类别首次启用、且金额 ≥ 其他报告期金额中位数的 1.5 倍时，判定为疑似一次性（特别）分红，<b>从前瞻口径中剔除</b>并在「显示分红明细」里单独列出——宁可保守，也不让一次性收益把股息率骗高。<br>
+      · <b>一次性分红识别</b> = 某报告期类别首次启用、且金额 ≥ 其他报告期金额中位数的 1.5 倍时，判定为疑似一次性（特别）分红，<b>从预计派息中剔除</b>并在「显示分红明细」里单独列出——宁可保守，也不让一次性收益把股息率骗高。<br>
       · <b>税前口径</b> = 所有派息金额均为税前；A股现金分红需缴红利税（持股满 1 年免征、1 个月至 1 年扣 10%、不满 1 个月扣 20%），实际到手会低于面板数值。<br>
       · <b>持有天数</b> = 自买入日期（含买入当日）起至今日之间的<b>A股交易日数量</b>（基于上证指数真实交易日历，周末与法定节假日不计入）；仅对已填写买入日期的非观察持仓显示，未填写买入日期或“观察”标的均不显示。<br>
       · <b>固定列小贴士</b> = 仅“名称”列支持固定至表格最左侧，点击表头右侧的 📌 按钮即可切换固定状态。
@@ -1176,9 +1342,12 @@ const STORAGE_GOAL_KEY = 'yieldcraft_goal_v1';
 const STORAGE_WELCOME_KEY = 'yieldcraft_welcome_v1';
 const STORAGE_PINNED_COL_KEY = 'yieldcraft_pinned_col_v1';
 const STORAGE_COLUMN_ORDER_KEY = 'yieldcraft_column_order_v1';
+// 闲置现金：账户层面字段，独立存储（不混进 holdings_data_v1，避免污染持仓表结构）
+const STORAGE_CASH_KEY = 'yieldcraft_idle_cash_v1';
 
 let detailVisible = false;
 let currentRows = [];
+let lastRenderDate = null;   // 最近一次渲染所用基准日，供局部重绘复用
 let editingHoldings = [];
 let toastTimer = null;
 
@@ -1347,6 +1516,19 @@ function saveHoldings(holdings) {
     localStorage.setItem(STORAGE_HOLDINGS_KEY, JSON.stringify(holdings));
 }
 
+// 闲置现金读写：返回 >= 0 的数字；未设置/非法 → 0
+function loadIdleCash() {
+    const raw = localStorage.getItem(STORAGE_CASH_KEY);
+    const v = parseFloat(raw);
+    return (isFinite(v) && v > 0) ? v : 0;
+}
+
+function saveIdleCash(v) {
+    const n = parseFloat(v);
+    if (!isFinite(n) || n <= 0) localStorage.removeItem(STORAGE_CASH_KEY);
+    else localStorage.setItem(STORAGE_CASH_KEY, String(n));
+}
+
 function loadGoalConfig() {
     const stored = localStorage.getItem(STORAGE_GOAL_KEY);
     if (stored) {
@@ -1406,7 +1588,7 @@ const STORAGE_QUOTES_CACHE_KEY = 'yieldcraft_quotes_cache_v1';
 //     升级键名同时强制清掉旧版遗留的脏缓存（如 513530 曾缓存空记录）
 // v3（2026-09-15）：分红记录结构新增 report_date/progress/record_date 三个字段，
 //     v2 缓存里存的是【旧结构】（无报告期），若不升版会继续按旧结构喂给新算法
-//     → 前瞻口径全部退化成节律法、平安仍显示 6.7%。必须升 v3 强制重拉。
+//     → 预计派息全部退化成节律法、平安仍显示 6.7%。必须升 v3 强制重拉。
 const STORAGE_DIVIDENDS_CACHE_KEY = 'yieldcraft_dividends_cache_v3';
 const DIVIDENDS_CACHE_TTL = 24 * 3600 * 1000; // 有分红记录：缓存 24h（东财数据极少变动）
 const DIVIDENDS_EMPTY_CACHE_TTL = 1 * 3600 * 1000; // 空结果（无分红）：只缓存 1h，尽快自愈
@@ -2007,7 +2189,7 @@ async function buildRows(holdings, quotes, dividendsMap, today) {
         const est2 = (analysis.lfy_per_share !== null && analysis.lfy_per_share > 0)
             ? analysis.lfy_per_share
             : (analysis.ttm_per_share > 0 ? analysis.ttm_per_share : null);
-        const secondaryLabel = (analysis.lfy_per_share !== null && analysis.lfy_per_share > 0) ? '上年实际' : '近12月';
+        const secondaryLabel = (analysis.lfy_per_share !== null && analysis.lfy_per_share > 0) ? '去年实际派息' : '近12个月派息';
 
         let yieldCost = (cost !== null && cost > 0 && est) ? (est / cost * 100) : null;
         const yieldPrice = (price && est) ? (est / price * 100) : null;
@@ -2059,14 +2241,20 @@ function fmtYieldCost(row) {
     return '--';
 }
 
-// 生成"主数字（前瞻口径）+ 副行小字（上年实际 / 近12月）"的股息率单元格
+// 生成"主数字（预计派息）+ 副行小字（去年实际派息 / 近12个月派息）"的股息率单元格
 // 不新增列：纵向叠放在同一格内，保持表格宽度不变（手机上不用更用力左右滑）
+// 智能省略：主副两数几乎相同时不显示副行（多数标的两数一致，重复显示无信息量）；
+//           有差异才出现副行并加金色高亮，提示"这里和预计不一样"。
 function fmtYieldCell(mainText, subVal, subLabel) {
     const mainHtml = `<span class="yield-main">${escapeHtml(mainText)}</span>`;
     if (subVal === null || subVal === undefined || isNaN(subVal)) {
         return `<div class="yield-cell">${mainHtml}</div>`;
     }
-    return `<div class="yield-cell">${mainHtml}<span class="yield-sub">`
+    const mainNum = parsePctText(mainText);
+    if (mainNum !== null && Math.abs(mainNum - subVal) < SUB_LINE_MIN_DIFF_PCT) {
+        return `<div class="yield-cell">${mainHtml}</div>`;
+    }
+    return `<div class="yield-cell">${mainHtml}<span class="yield-sub warn">`
         + `<span class="sub-label">${escapeHtml(subLabel)}</span> ${subVal.toFixed(3)}%</span></div>`;
 }
 
@@ -2180,7 +2368,77 @@ function setPinnedColumn(colKey, event) {
 }
 
 // ================== 界面渲染 ==================
-function renderCards(rows) {
+// 副口径显示阈值：预计派息 与 去年实际派息 的差值小于此值 → 只显示一行
+// 理由：多数标的两个数完全相同，重复显示既占空间又稀释信息量；
+//       一旦大于阈值（派息政策有变），第二行自动出现并高亮提醒。
+const SUB_LINE_MIN_DIFF_PCT = 0.05;   // 百分点：股息率两口径最小可辨差异
+const SUB_LINE_MIN_DIFF_AMT = 1.00;   // 元：分红金额两口径最小可辨差异
+
+// 解析 "5.855%" / "--" → 数值；不可解析返回 null
+function parsePctText(t) {
+    if (typeof t !== 'string') return null;
+    const m = t.match(/^(-?\d+(?:\.\d+)?)%$/);
+    return m ? parseFloat(m[1]) : null;
+}
+
+// 股息率卡片的副行：差值足够大才显示「去年实际派息 X%」，并加金色高亮
+// withDivider=true 时在副行上方补一条虚线（主数字独占一行后需要视觉分隔）
+function yieldSubLine(mainText, subText, note, withDivider) {
+    const a = parsePctText(mainText), b = parsePctText(subText);
+    if (a === null || b === null) return '';
+    if (Math.abs(a - b) < SUB_LINE_MIN_DIFF_PCT) return '';
+    // 虚线必须和它下方的内容一起装进 .card-bottom，桌面端才能靠等高容器把虚线拉齐
+    const row = `<div class="card-sub-row is-diff">`
+        + `<span class="sub-label">去年实际派息${note ? `<span class="sub-note">${note}</span>` : ''}</span>`
+        + `<span class="sub-num">${subText}</span></div>`;
+    return `<div class="card-bottom">${withDivider ? '<div class="card-divider"></div>' : ''}${row}</div>`;
+}
+
+// 分红金额卡片的副行：同理，差值足够大才显示
+function amountSubLine(mainVal, subVal, note) {
+    if (mainVal === null || subVal === null || isNaN(mainVal) || isNaN(subVal)) return '';
+    if (Math.abs(mainVal - subVal) < SUB_LINE_MIN_DIFF_AMT) return '';
+    return `<div class="card-sub-row is-diff">`
+        + `<span class="sub-label">去年实际派息${note ? `<span class="sub-note">${note}</span>` : ''}</span>`
+        + `<span class="sub-num">¥${subVal.toFixed(2)}</span></div>`;
+}
+
+// 「去年实际派息」的时间注脚：取各标的 lfy_year 里最新的那个，例 "2025 财年"
+// 用途：把金额/百分比背后"这是哪一年真实发生过的钱"讲清楚，避免被当成预测值。
+function lfyYearNote(rows) {
+    const ys = (rows || []).map(r => r.analysis && r.analysis.lfy_year)
+        .filter(Boolean).map(String).sort();
+    return ys.length ? ys[ys.length - 1] + ' 财年' : '';
+}
+
+// 「未来 12 个月」的时间窗文字：今天 → 一年后，例 "2026-09 ~ 2027-09"
+// 随刷新日自动滚动，不需要手工维护。
+function forwardWindowText(today) {
+    const d = today || new Date();
+    const y = new Date(d.getTime()); y.setFullYear(y.getFullYear() + 1);
+    const fmt = (x) => x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0');
+    return fmt(d) + ' ~ ' + fmt(y);
+}
+
+// 「下一笔」的时间跨度文字：取所有标的下一笔里最早/最晚的月份，例 "跨至 2027-07"
+// 说明这笔钱不是同一时期到账的（容易误读为"马上能收一大笔"）。
+function nextSpanText(rows) {
+    const ds = (rows || [])
+        .map(r => (r.next && r.next[0]) ? r.next[0] : null)
+        .filter(Boolean)
+        .sort((a, b) => a - b);
+    if (!ds.length) return '';
+    const f = (x) => x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0');
+    const first = f(ds[0]), last = f(ds[ds.length - 1]);
+    if (first === last) return '到期 ' + last;
+    // 只跨 1 个月就不必写两段，写成"跨至 X"更短
+    const months = (ds[ds.length - 1].getFullYear() - ds[0].getFullYear()) * 12
+        + (ds[ds.length - 1].getMonth() - ds[0].getMonth());
+    return months <= 1 ? '到期 ' + last : '跨至 ' + last;
+}
+
+function renderCards(rows, today) {
+    today = today || new Date();
     const totalBookCost = rows.reduce((sum, r) => sum + (r.costTotal !== null ? r.costTotal : 0), 0);
     const totalInvested = rows.reduce((sum, r) => sum + r.capitalEmployed, 0);
     const totalIncome = rows.reduce((sum, r) => sum + r.income, 0);
@@ -2196,10 +2454,14 @@ function renderCards(rows) {
         profitPctText = (pct >= 0 ? '+' : '') + pct.toFixed(3) + '%';
     }
 
+    // 全仓浮动盈亏的百分比：分母 = 投入本金 + 闲置现金（现金摊薄收益率）
+    // 分子沿用 profitText（市值 − 账面成本），不重复加现金，否则两边抵消失去意义
+    let allInPctText = '--';
+
     const yc = totalInvested ? (totalIncome / totalInvested * 100) : null;
     const ycStr = yc ? yc.toFixed(3) + '%' : '--';
 
-    // 副口径（已实现）：股票用"上年实际"分子、基金用"近 12 个月到账"分子
+    // 副口径（去年实际派息）：股票用"去年实际"分子、基金用"近 12 个月"分子
     // 与主口径（前瞻）并列展示——两者之差就是末期分红的同比增速
     const totalIncome2 = rows.reduce((sum, r) => sum + (r.income2 || 0), 0);
     const yc2 = totalInvested ? (totalIncome2 / totalInvested * 100) : null;
@@ -2213,37 +2475,79 @@ function renderCards(rows) {
 
     const monthlyAvg = totalIncome / 12;
 
+    // 闲置现金（账户层面，独立于持仓）
+    // 「全仓」口径：分子不变（市值 − 本金），分母加上现金 —— 现金不生钱，摊薄收益率
+    const idleCash = loadIdleCash();
+    const hasCash = idleCash > 0;
+    const allInYcBase = totalInvested + idleCash;
+    if (hasCash && totalProfit !== null && isFinite(totalProfit)) {
+        const pct = totalProfit / allInYcBase * 100;
+        allInPctText = (pct >= 0 ? '+' : '') + pct.toFixed(3) + '%';
+    }
+
+    // 三级字号所需的动态注脚文字
+    const winText = forwardWindowText(today);
+    const spanText = nextSpanText(rows);
+    const amtNote = lfyYearNote(rows);
+    const hasAmtDiff = Math.abs(totalIncome - totalIncome2) >= SUB_LINE_MIN_DIFF_AMT;
+
     document.getElementById('cardsContainer').innerHTML = `
       <div class="card">
         <div class="label">总市值</div>
         <div class="value">${totalMv.toFixed(2)}</div>
         <div class="card-subtext ${profitCls}">浮动盈亏 ${profitText} (${profitPctText})</div>
+        ${hasCash ? `<div class="card-bottom">
+          <div class="card-divider"></div>
+          <div class="card-block">
+            <div class="block-label"><span class="block-text">全仓浮动盈亏</span><span class="block-note">含闲置现金</span></div>
+            <div class="block-value ${profitCls}">${profitText} (${allInPctText})</div>
+          </div>
+        </div>` : ''}
       </div>
       <div class="card">
         <div class="label">投入本金</div>
         <div class="value">${totalInvested.toFixed(2)}</div>
+        <div class="card-bottom">
+          <div class="card-divider"></div>
+          <div class="card-block">
+            <div class="block-label"><span class="block-text">闲置现金</span><span class="block-note">点击可改</span></div>
+            <div class="block-value editable" id="cashInline" data-value="${idleCash.toFixed(2)}" tabindex="0" role="button" aria-label="${hasCash ? '点击修改闲置现金' : '点击填写闲置现金'}"><span class="txt"${hasCash ? '' : ' style="color:var(--text-tertiary);font-weight:400;font-size:14px;"'}>${hasCash ? '¥' + idleCash.toFixed(2) : '点击填写'}</span><span class="edit-pen">改</span></div>
+          </div>
+        </div>
       </div>
       <div class="card">
-        <div class="label">全年总分红 (约)</div>
-        <div class="value gold">¥${totalIncome.toFixed(2)}</div>
-        <div class="card-subtext">下期预测合计: ¥${totalNextIncome.toFixed(2)}</div>
-        <div class="card-subtext">已实现口径: ¥${totalIncome2.toFixed(2)}</div>
+        <div class="label">预计派息</div>
+        <div class="card-note">未来 12 个月 · ${winText}</div>
+        <div class="value gold value-main">¥${totalIncome.toFixed(2)}</div>
+        <div class="card-bottom">
+          <div class="card-divider"></div>
+          <div class="card-sub-row-group">
+            ${hasAmtDiff
+                ? `<div class="card-sub-row is-diff"><span class="sub-label">去年实际派息${amtNote ? `<span class="sub-note">${amtNote}</span>` : ''}</span><span class="sub-num">¥${totalIncome2.toFixed(2)}</span></div>`
+                : `<div class="card-sub-row"><span class="sub-label">去年实际派息（与预计一致）${amtNote ? `<span class="sub-note">${amtNote}</span>` : ''}</span><span class="sub-num">¥${totalIncome2.toFixed(2)}</span></div>`}
+            <div class="card-sub-row">
+              <span class="sub-label">下一笔预测合计${spanText ? ' · ' + spanText : ''}</span>
+              <span class="sub-num">¥${totalNextIncome.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="card">
         <div class="label">月均分红 (约)</div>
         <div class="value hl">¥${monthlyAvg.toFixed(2)}</div>
+        <div class="card-note">按未来 12 个月预计派息 ÷ 12</div>
       </div>
       <div class="card">
         <div class="label">整体成本股息率</div>
-        <div class="value hl">${ycStr}</div>
-        <div class="card-subtext">前瞻 · 已实现 ${yc2Str}</div>
-        <div class="card-subtext">基于历史买入成本</div>
+        <div class="card-note">基于历史买入成本 · 未来 12 个月</div>
+        <div class="value hl value-main">${ycStr}</div>
+        ${yieldSubLine(ycStr, yc2Str, amtNote, true)}
       </div>
       <div class="card">
         <div class="label">组合动态股息率</div>
-        <div class="value hl">${ypStr}</div>
-        <div class="card-subtext">前瞻 · 已实现 ${yp2Str}</div>
-        <div class="card-subtext">基于最新市场价格</div>
+        <div class="card-note">基于最新市场价格 · 未来 12 个月</div>
+        <div class="value hl value-main">${ypStr}</div>
+        ${yieldSubLine(ypStr, yp2Str, amtNote, true)}
       </div>
     `;
 }
@@ -2569,36 +2873,36 @@ function buildPeriodSummary(r) {
     const pctOf = (v) => (price && v) ? `（现价 ${(v / price * 100).toFixed(3)}%）` : '';
     const items = [];
 
-    // ① 前瞻（主口径）
+    // ① 预计派息（主口径）
     const detail = a.method === 'report'
         ? `${(a.period_desc || []).join(' ＋ ')}`
         : `${(a.period_desc || [])[0] || ''}`;
-    items.push(`<b>前瞻口径（当前显示值）</b>：${a.forward_per_share.toFixed(4)} 元/股${pctOf(a.forward_per_share)}`
+    items.push(`<b>预计派息（当前显示值）</b>：${a.forward_per_share.toFixed(4)} 元/股${pctOf(a.forward_per_share)}`
         + (detail ? ` ＝ ${detail}` : ''));
 
-    // ② 上年实际（仅股票，有完整报告年度时）
+    // ② 去年实际派息（仅股票，有完整报告年度时）
     if (a.lfy_per_share !== null && a.lfy_per_share > 0) {
-        items.push(`<b>上年实际</b>：${a.lfy_per_share.toFixed(4)} 元/股${pctOf(a.lfy_per_share)}`
+        items.push(`<b>去年实际派息</b>：${a.lfy_per_share.toFixed(4)} 元/股${pctOf(a.lfy_per_share)}`
             + ` ＝ ${a.lfy_year} 报告年度合计（100% 已发生，可作对照）`);
     }
 
-    // ③ 近 12 个月到账（真实现金进账）
+    // ③ 近 12 个月派息（真实现金进账）
     if (a.ttm_per_share > 0) {
-        items.push(`<b>近 12 个月到账</b>：${a.ttm_per_share.toFixed(4)} 元/股${pctOf(a.ttm_per_share)}`
-            + `（过去 365 天实际除息共 ${a.ttm_count} 期；与前瞻不等是正常的——窗口里可能跨了两个年度）`);
+        items.push(`<b>近 12 个月派息</b>：${a.ttm_per_share.toFixed(4)} 元/股${pctOf(a.ttm_per_share)}`
+            + `（过去 365 天实际除息共 ${a.ttm_count} 期；与预计派息不等是正常的——窗口里可能跨了两个年度）`);
     }
 
     if (a.special_per_share > 0) {
-        items.push(`<span style="color:var(--gold);">检测到疑似一次性分红 ${a.special_per_share.toFixed(4)} 元/股，已从前瞻口径中剔除</span>`);
+        items.push(`<span style="color:var(--gold);">检测到疑似一次性分红 ${a.special_per_share.toFixed(4)} 元/股，已从预计派息中剔除</span>`);
     }
     if (a.degraded) {
-        items.push(`<span style="color:var(--gold);">数据源未提供"报告期"，已降级为"最近一个完整自然年"的后视口径，与前瞻口径有偏差</span>`);
+        items.push(`<span style="color:var(--gold);">数据源未提供"报告期"，已降级为"最近一个完整自然年"的后视口径，与预计派息有偏差</span>`);
     }
     if (a.insufficient_history) {
-        items.push(`<span style="color:var(--gold);">历史派息记录不足推断的一年期数，前瞻口径可能低估</span>`);
+        items.push(`<span style="color:var(--gold);">历史派息记录不足推断的一年期数，预计派息可能低估</span>`);
     }
     if (a.low_confidence && !a.insufficient_history && !a.degraded) {
-        items.push(`<span style="color:var(--gold);">前瞻与上年实际偏差超过 30%，请留意是否有派息政策变更</span>`);
+        items.push(`<span style="color:var(--gold);">预计派息与去年实际派息偏差超过 30%，请留意是否有派息政策变更</span>`);
     }
 
     return `<div class="period-summary">${items.map(t => `<div>· ${t}</div>`).join('')}</div>`;
@@ -2614,7 +2918,7 @@ function renderDetail(rows) {
         let its = '';
         for (const rec of r.records) {
             const used = fwdSet.has(rec.ex_date);
-            const mark = used ? '<span class="fwd-mark" title="已计入前瞻口径">●</span>' : '';
+            const mark = used ? '<span class="fwd-mark" title="已计入预计派息">●</span>' : '';
             its += `<tr${used ? ' class="row-fwd"' : ''}>
                 <td style='text-align:left;'>${escapeHtml(rec.ex_date)}</td>
                 <td style='text-align:left;'>${escapeHtml(rec.report_date || '—')}</td>
@@ -2632,16 +2936,18 @@ function renderDetail(rows) {
                   <tbody>${its}</tbody>
               </table>
             </div>
-            <div style="font-size:11px; color:var(--text-secondary); margin:-8px 0 6px;">● = 已计入前瞻口径；报告期为"—"表示该数据源未提供（基金/ETF 无财报报告期概念）</div>`;
+            <div style="font-size:11px; color:var(--text-secondary); margin:-8px 0 6px;">● = 已计入预计派息；报告期为"—"表示该数据源未提供（基金/ETF 无财报报告期概念）</div>`;
     }
     container.innerHTML = html || '<p style="color:#94a3b8; font-size:13px; padding:10px 0;">暂无详细派息数据</p>';
 }
 
 function renderAll(rows, today, timeStr) {
     currentRows = rows;
+    lastRenderDate = today || new Date();   // 供闲置现金输入后原样重绘卡片
     const totalIncome = rows.reduce((sum, r) => sum + r.income, 0);
     const monthlyAvg = totalIncome / 12;
-    renderCards(rows);
+    renderCards(rows, lastRenderDate);
+    bindCashInlineEditor();   // 卡片内「闲置现金」点击编辑（委托绑定，只挂一次）
     renderStaleWarn(rows);
     renderTable(rows);
     renderLadder(monthlyAvg, rows);
@@ -2650,7 +2956,7 @@ function renderAll(rows, today, timeStr) {
 }
 
 // 数据源降级警示：股票的股息率拿不到"报告期"时只能退化成后视口径，
-// 数值会与前瞻口径（同花顺口径）有偏差，必须显式告知用户，绝不静默出错。
+// 数值会与预计派息（同花顺口径）有偏差，必须显式告知用户，绝不静默出错。
 function renderStaleWarn(rows) {
     const el = document.getElementById('staleWarnBanner');
     if (!el) return;
@@ -2659,7 +2965,7 @@ function renderStaleWarn(rows) {
     const list = bad.map(r => `${escapeHtml(r.code)} ${escapeHtml(r.name)}`).join('、');
     el.style.display = 'block';
     el.innerHTML = `⚠️ <b>数据源未提供"报告期"字段</b>，以下股票的股息率已降级为「最近一个完整自然年按除息日合计」的后视口径，`
-        + `与前瞻口径（同花顺口径）存在偏差：<b>${list}</b>。<br>`
+        + `与预计派息（同花顺口径）存在偏差：<b>${list}</b>。<br>`
         + `常见原因：后端 Worker 尚未升级到新版 <code>index.js</code>。请部署后端后刷新页面（本页分红缓存已升级为 v3，会自动重拉）。`;
 }
 
@@ -2976,6 +3282,136 @@ function toggleDetail() {
     renderDetail(currentRows);
 }
 
+// ============ 闲置现金：卡片内就地编辑（唯一录入通道）============
+// 入口只在「投入本金」卡片里那行「闲置现金 ¥xxx」：点一下原地变输入框，
+// 电脑和手机共用这一套逻辑（原先上方那条独立输入框已删除，避免两个输入源打架）。
+//
+// 交互约定：
+//   · 点击 / 回车 / 空格 → 进入编辑（手机上 inputmode=decimal 直接弹数字键盘）
+//   · 输入框失焦、或按回车 → 落库（点哪里都算数，不需要找"确定"按钮）
+//   · Esc → 放弃本轮修改，恢复原值
+// localStorage 是唯一事实来源：保存后按最新值重绘卡片区。
+function cashSyncFrom(rawValue) {
+    saveIdleCash(rawValue);
+    const saved = loadIdleCash();
+    if (currentRows && currentRows.length) {
+        // 卡片区必须整块重绘（数字、全仓口径的百分比、有无「全仓浮动盈亏」小节都会变），
+        // 重绘会重建 DOM，所以下面用事件委托挂在容器上，不需要重新绑定
+        renderCards(currentRows, lastRenderDate || new Date());
+        bindCashInlineEditor();
+    }
+    return saved;
+}
+
+// 卡片内那行「闲置现金 ¥xxx」点一下就地变输入框
+// 事件委托挂在 #cardsContainer 上，容器本身不参与重绘，只挂一次
+function bindCashInlineEditor() {
+    const box = document.getElementById('cardsContainer');
+    if (!box || box.dataset.cashBound === '1') return;
+    box.dataset.cashBound = '1';
+
+    // 编辑态里正在编辑的节点，用于把焦点转移（node → 它内部的 input）与真正离开区分开
+    let editing = null;
+
+    // 进入编辑态：把 .txt 换成真 input
+    function enterEdit(node) {
+        if (!node || node.classList.contains('editing')) return;
+        const cur = parseFloat(node.dataset.value) || 0;
+        node.classList.add('editing');
+        // 用 text + inputmode=decimal：手机照样弹数字键盘，又不像 number 输入框那样
+        // 屏蔽选中（number 不支持 selection 接口，"点开即全选、直接覆盖"会失效）
+        node.innerHTML = '<input type="text" inputmode="decimal" autocomplete="off" value="'
+            + (cur > 0 ? cur : '') + '" placeholder="0.00" aria-label="闲置现金金额">';
+        const input = node.querySelector('input');
+        editing = node;
+        input.focus();
+        try {
+            if (input.value) input.select();              // 已有金额 → 全选，直接敲新数字覆盖
+            else input.setSelectionRange(0, 0);           // 空值 → 光标停在原处
+        } catch (e) {}
+    }
+
+    // 提交：解析 → 保存 → 闪一下反馈。
+    //   清空        → 归零（= 取消闲置现金，与 saveIdleCash 语义一致）
+    //   非数字/负数 → 保留原值 + 提示，绝不静默把用户的钱清零
+    function commit(node) {
+        if (!node || !node.classList.contains('editing')) return;
+        const input = node.querySelector('input');
+        if (!input) return;
+        editing = null;
+        const prev = parseFloat(node.dataset.value) || 0;
+        const raw = String(input.value).replace(/[\s,\uFF0C]/g, '');   // 容忍 "50,000"
+        if (raw === '') {
+            cashSyncFrom('');                 // 清空 = 归零
+        } else {
+            const n = parseFloat(raw);
+            if (!isFinite(n) || n < 0) {
+                cashSyncFrom(prev);           // 非法输入 → 原样回填
+                showToast('请输入有效的金额，已保留原值', 'error');
+            } else {
+                cashSyncFrom(n);
+            }
+        }
+        // 上面重绘过卡片区，旧节点已被替换 → 重新取一次，闪一下确认"改进去了"
+        const fresh = document.getElementById('cashInline');
+        if (fresh) {
+            fresh.classList.add('flash');
+            setTimeout(() => { const f = document.getElementById('cashInline'); if (f) f.classList.remove('flash'); }, 620);
+        }
+    }
+
+    // ⚠️ 桌面端"点了没反应"的根因就在这里：
+    //    老代码只监听 click；而 click 之前浏览器会先给带 tabindex 的节点设焦点，
+    //    节点拿到焦点后我们再 innerHTML 换出 input 并 focus() —— 这一下焦点从
+    //    节点内部转给了节点内部的 input，浏览器会朝节点抛一个 focusout，
+    //    老代码不分青红皂白就 commit()，于是输入框刚出现就被保存 + 重绘抹掉。
+    //    手机端点击不先设焦点，所以只有电脑上表现为"点了没反应"。
+    // 修法①（治本）：mousedown 阶段阻止节点抢焦点，焦点只由后面的 input 拿。
+    box.addEventListener('mousedown', function (e) {
+        if (!e.target.closest) return;
+        const node = e.target.closest('.block-value.editable');
+        if (node && !node.classList.contains('editing')) e.preventDefault();
+    });
+
+    box.addEventListener('click', function (e) {
+        const node = e.target.closest && e.target.closest('.block-value.editable');
+        if (node) enterEdit(node);
+    });
+
+    box.addEventListener('keydown', function (e) {
+        const node = e.target.closest && e.target.closest('.block-value.editable');
+        if (!node) return;
+        if (node.classList.contains('editing')) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                commit(node);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                // 放弃修改：恢复原值，并把焦点/编辑态清干净
+                const cur = parseFloat(node.dataset.value) || 0;
+                node.classList.remove('editing');
+                node.innerHTML = '<span class="txt"' + (cur > 0 ? '' : ' style="color:var(--text-tertiary);font-weight:400;font-size:14px;"')
+                    + '>' + (cur > 0 ? '¥' + cur.toFixed(2) : '点击填写') + '</span><span class="edit-pen">改</span>';
+                editing = null;
+                node.blur();
+            }
+        } else if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            enterEdit(node);
+        }
+    });
+
+    // 焦点真正离开这行数字才落库（手机点任意空白处 = blur，不需要按回车）
+    // 修法②（兜底）：焦点只是转到本节点内部的 input 时不算离开
+    box.addEventListener('focusout', function (e) {
+        const node = e.target.closest && e.target.closest('.block-value.editable');
+        if (!node || !node.classList.contains('editing')) return;
+        const next = e.relatedTarget;
+        if (next && (node === next || node.contains(next))) return;   // 焦点还在本行内
+        if (editing === node) commit(node);
+    });
+}
+
 document.getElementById('addForm').addEventListener('submit', function(e) {
     e.preventDefault();
     const codeInput = this.querySelector('input[name="code"]');
@@ -3142,16 +3578,16 @@ function buildCopyText(rows) {
     L.push('【概览】');
     L.push('总市值\t¥' + totalMv.toFixed(2));
     L.push('投入本金\t¥' + totalInvested.toFixed(2));
-    L.push('全年总分红(约·前瞻)\t¥' + totalIncome.toFixed(2));
-    L.push('全年总分红·已实现\t¥' + totalIncome2.toFixed(2));
+    L.push('全年预计派息\t¥' + totalIncome.toFixed(2));
+    L.push('去年实际派息\t¥' + totalIncome2.toFixed(2));
     L.push('月均分红(约)\t¥' + monthlyAvg.toFixed(2));
-    L.push('整体成本股息率(前瞻)\t' + (yc ? yc.toFixed(3) + '%' : '--'));
-    L.push('整体成本股息率·已实现\t' + (yc2 ? yc2.toFixed(3) + '%' : '--'));
-    L.push('组合动态股息率(前瞻)\t' + (yp ? yp.toFixed(3) + '%' : '--'));
-    L.push('组合动态股息率·已实现\t' + (yp2 ? yp2.toFixed(3) + '%' : '--'));
+    L.push('整体成本股息率(预计派息)\t' + (yc ? yc.toFixed(3) + '%' : '--'));
+    L.push('整体成本股息率(去年实际派息)\t' + (yc2 ? yc2.toFixed(3) + '%' : '--'));
+    L.push('组合动态股息率(预计派息)\t' + (yp ? yp.toFixed(3) + '%' : '--'));
+    L.push('组合动态股息率(去年实际派息)\t' + (yp2 ? yp2.toFixed(3) + '%' : '--'));
     L.push('');
     L.push('【持仓明细】');
-    L.push('代码\t名称\t成本股息率\t现价股息率\t现价股息率·已实现\t下期预测\t年度分红\t分红频率\t成本\t数量\t现价\t今日涨跌');
+    L.push('代码\t名称\t成本股息率\t现价股息率\t现价股息率(去年实际派息)\t下期预测\t年度分红\t分红频率\t成本\t数量\t现价\t今日涨跌');
 
     for (const r of rows) {
         const isWatch = r.shares === 0;
@@ -3188,8 +3624,8 @@ function buildCopyText(rows) {
         L.push([r.code, r.name, yieldCost, yieldPrice, yieldPrice2, next, income, r.freq, cost, shares, price, pct].join('\t'));
     }
     L.push('');
-    L.push('注：① 前瞻口径 = 最近一份年报 + 最近一份中报/季报（与同花顺口径一致），含预估成分；');
-    L.push('    ② 已实现口径 = 股票取最近一个完整报告年度实际派息、ETF 取近 12 个月实际到账，100% 已发生；');
+    L.push('注：① 预计派息 = 最近一份年报 + 最近一份中报/季报（与同花顺口径一致），含预估成分；');
+    L.push('    ② 去年实际派息 = 股票取最近一个完整报告年度实际派息、ETF 取近 12 个月实际到账，100% 已发生；');
     L.push('    ③ 两者之差 ≈ 末期分红的同比增速；金额均为税前，A股持股不满 1 年需扣红利税。');
     return L.join('\n');
 }
@@ -3243,7 +3679,8 @@ function exportData() {
         holdings: holdings,
         goalConfig: goalConfig,
         columnOrder: columnOrder,
-        pinnedColKey: pinnedColKey
+        pinnedColKey: pinnedColKey,
+        idleCash: loadIdleCash()   // 闲置现金随备份一起走，不参与版本兼容
     };
     const dataStr = JSON.stringify(exportBundle, null, 2);
     const blob = new Blob([dataStr], {type: 'application/json'});
@@ -3271,6 +3708,8 @@ function importData(event) {
             } else if (data && typeof data === 'object' && Array.isArray(data.holdings)) {
                 importedHoldings = data.holdings;
                 if (data.goalConfig) importedGoal = data.goalConfig;
+                // 闲置现金随备份一起迁移（卡片会在下面 refreshData/重绘时读到新值）
+                if (data.idleCash !== undefined) saveIdleCash(data.idleCash);
                 if (Array.isArray(data.columnOrder)) {
                     columnOrder = data.columnOrder;
                     saveColumnOrder(columnOrder);
@@ -3310,6 +3749,7 @@ function importData(event) {
 
 // ================== 初始化 ==================
 document.addEventListener('DOMContentLoaded', () => {
+    // 闲置现金没有独立输入框了，直接由卡片渲染时读 localStorage，无需回填
     // 先用本地交易日历校准刷新按钮文案（refreshData 完成后会再校准一次）
     const cal = loadTradeCalCache();
     updateRefreshBtnLabel(cal && Array.isArray(cal.days) ? cal.days : null);
